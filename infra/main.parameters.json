@@ -1,0 +1,78 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "resourceGroupName": {
+            "value": "${AZURE_RESOURCE_GROUP}"
+        },
+        "environmentName": {
+            "value": "${AZURE_ENV_NAME}"
+        },
+        "location": {
+            "value": "${AZURE_LOCATION}"
+        },
+        "aiDeploymentsLocation": {
+            "value": "${AZURE_AI_DEPLOYMENTS_LOCATION=${AZURE_LOCATION}}"
+        },
+        "aiFoundryResourceName": {
+            "value": "${AZURE_AI_ACCOUNT_NAME=}"
+        },
+        "aiFoundryProjectName": {
+            "value": "${AZURE_AI_PROJECT_NAME=}"
+        },
+        "modelDeploymentName": {
+            "value": "${AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-5}"
+        },
+        "principalId": {
+            "value": "${AZURE_PRINCIPAL_ID}"
+        },
+        "principalType": {
+            "value": "${AZURE_PRINCIPAL_TYPE=User}"
+        },
+        "enableMonitoring": {
+            "value": "${ENABLE_MONITORING=true}"
+        },
+        "enableHostedAgents": {
+            "value": "${ENABLE_HOSTED_AGENTS=false}"
+        },
+        "enableComputeLayer": {
+            "value": "${ENABLE_COMPUTE_LAYER=true}"
+        },
+        "mafContainerImage": {
+            "value": "${MAF_CONTAINER_IMAGE=}"
+        },
+        "langGraphContainerImage": {
+            "value": "${LANGGRAPH_CONTAINER_IMAGE=}"
+        },
+        "apimPublisherEmail": {
+            "value": "${APIM_PUBLISHER_EMAIL=}"
+        },
+        "apimAgentsJwtAudience": {
+            "value": "${APIM_AGENTS_JWT_AUDIENCE=}"
+        },
+        "apimAgentsJwtTenantId": {
+            "value": "${APIM_AGENTS_JWT_TENANT_ID=}"
+        },
+        "apimSecretsToKeyVault": {
+            "value": "${APIM_SECRETS_TO_KEYVAULT=true}"
+        },
+        "apimTokenLimitTpm": {
+            "value": "${APIM_TOKEN_LIMIT_TPM=100000}"
+        },
+        "apimOpenAiApiVersion": {
+            "value": "${APIM_OPENAI_API_VERSION=2024-10-21}"
+        },
+        "existingLogAnalyticsResourceId": {
+            "value": "${LOG_ANALYTICS_RESOURCE_ID=}"
+        },
+        "existingApplicationInsightsResourceId": {
+            "value": "${APPLICATIONINSIGHTS_RESOURCE_ID=}"
+        },
+        "existingApplicationInsightsConnectionString": {
+            "value": "${APPLICATIONINSIGHTS_CONNECTION_STRING=}"
+        },
+        "existingContainerRegistryResourceId": {
+            "value": "${AZURE_CONTAINER_REGISTRY_RESOURCE_ID=}"
+        }
+    }
+}

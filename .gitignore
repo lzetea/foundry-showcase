@@ -1,0 +1,38 @@
+# Environment files
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Docker build artifacts staged into scenario src/ folders
+agents/02_langgraph_aca/src/data/
+agents/03_multi_agent/src/data/
+
+# Cached vector-store id for scenario 04 (Foundry built-in tools)
+agents/04_foundry_tools_agent/.vector_store_id
+
+# Compiled ARM template (regenerated from main.bicep on every `azd up`)
+infra/main.json
+
+# Eval / red-team run dumps (not source data)
+data/contoso-travel/redteam_eval_output_items.json
+data/contoso-travel/*_eval_output_items.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# azd local state — contains subscription IDs, principal IDs, telemetry keys
+.azure/
+
+# Logs
+logs/
+*.log

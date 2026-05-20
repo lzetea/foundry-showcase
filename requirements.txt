@@ -1,0 +1,24 @@
+# Core Azure AI SDK
+azure-ai-projects==2.0.0
+azure-identity==1.19.0
+azure-keyvault-secrets==4.8.0
+python-dotenv==1.0.1
+
+# Observability
+opentelemetry-sdk==1.29.0
+azure-core-tracing-opentelemetry==1.0.0b12
+azure-monitor-opentelemetry==1.6.5
+
+# Data
+pandas==2.2.3
+pyyaml==6.0.2
+
+# Hosted Agents — Microsoft Agent Framework (MAF)
+azure-ai-agentserver-agentframework==1.0.0b17
+
+# Hosted Agents — LangGraph
+azure-ai-agentserver-langgraph==1.0.0b17
+langgraph==0.6.5
+langchain-core==0.3.64
+langchain-openai==0.2.14
+langchain==0.3.14

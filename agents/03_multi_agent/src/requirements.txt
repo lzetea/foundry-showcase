@@ -1,0 +1,6 @@
+azure-ai-agentserver-agentframework==1.0.0b7
+agent-framework==1.0.0b7
+azure-identity==1.19.0
+python-dotenv==1.0.1
+pandas==2.2.3
+azure-core-tracing-opentelemetry==1.0.0b12

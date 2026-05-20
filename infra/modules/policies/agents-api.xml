@@ -1,0 +1,38 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- __JWT_VALIDATION__ -->
+        <!-- Path-based dispatch to the correct ACA backend.
+             The API path is /agents; subroutes are /maf and /langgraph.
+             The backend expects the original agent-server surface (e.g. /responses), so
+             we strip the subroute prefix before forwarding. -->
+        <choose>
+            <when condition="@(context.Request.OriginalUrl.Path.Contains(&quot;/agents/maf&quot;))">
+                <set-backend-service backend-id="maf-agent" />
+                <rewrite-uri template="@(context.Request.OriginalUrl.Path.Substring(context.Request.OriginalUrl.Path.IndexOf(&quot;/agents/maf&quot;) + &quot;/agents/maf&quot;.Length))" />
+            </when>
+            <when condition="@(context.Request.OriginalUrl.Path.Contains(&quot;/agents/langgraph&quot;))">
+                <set-backend-service backend-id="langgraph-agent" />
+                <rewrite-uri template="@(context.Request.OriginalUrl.Path.Substring(context.Request.OriginalUrl.Path.IndexOf(&quot;/agents/langgraph&quot;) + &quot;/agents/langgraph&quot;.Length))" />
+            </when>
+            <otherwise>
+                <return-response>
+                    <set-status code="404" reason="No agent matched. Use /agents/maf/* or /agents/langgraph/*." />
+                </return-response>
+            </otherwise>
+        </choose>
+        <!-- Propagate correlation id for tracing. -->
+        <set-header name="x-apim-request-id" exists-action="override">
+            <value>@(context.RequestId.ToString())</value>
+        </set-header>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

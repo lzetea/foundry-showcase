@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+# Microsoft Foundry — end-to-end showcase.
+# Container apps (ACA) are rolled by per-scenario Python scripts in
+# agents/<scenario>/deploy_and_register.py (build via ACR, update revision).
+# `azd up` only handles the Bicep infra.
+name: demo-foundry-showcase
+infra:
+    provider: bicep
+    path: ./infra

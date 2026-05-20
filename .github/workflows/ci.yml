@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  python-smoke:
+    name: Python import smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Import all scenario + shared modules
+        run: |
+          python - <<'PY'
+          import importlib
+          modules = [
+              "agents.shared.config",
+              "agents.shared.tools",
+              "agents.shared.aca_connection",
+              "agents.shared.eval_utils",
+              "agents.shared.evaluate",
+              "agents.shared.redteam",
+              "agents.shared.registry",
+              "agents.shared.trace",
+              "agents.01_prompt_agent.scenario",
+              "agents.01_prompt_agent.agent_def",
+              "agents.02_langgraph_aca.scenario",
+              "agents.03_multi_agent.scenario",
+              "agents.04_foundry_tools_agent.scenario",
+              "agents.04_foundry_tools_agent.agent_def",
+          ]
+          for m in modules:
+              importlib.import_module(m)
+              print(f"  ok  {m}")
+          print("OK")
+          PY
+
+  bicep-build:
+    name: Bicep compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bicep CLI
+        run: |
+          curl -Lo bicep https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
+          chmod +x ./bicep
+          sudo mv ./bicep /usr/local/bin/bicep
+          bicep --version
+
+      - name: Compile main.bicep
+        run: bicep build infra/main.bicep --outfile /tmp/main.json
+
+  gitleaks:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

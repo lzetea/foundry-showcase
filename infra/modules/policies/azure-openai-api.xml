@@ -1,0 +1,37 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- Managed-identity auth to Foundry (Cognitive Services). -->
+        <authentication-managed-identity resource="https://cognitiveservices.azure.com"
+                                         output-token-variable-name="msi-access-token"
+                                         ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["msi-access-token"])</value>
+        </set-header>
+
+        <!-- Per-subscription TPM cap for Azure OpenAI calls. -->
+        <azure-openai-token-limit counter-key="@(context.Subscription?.Id ?? &quot;anon&quot;)"
+                                  tokens-per-minute="__TPM__"
+                                  estimate-prompt-tokens="true"
+                                  remaining-tokens-variable-name="remainingTokens" />
+
+        <!-- Emit token usage metrics to Application Insights. -->
+        <azure-openai-emit-token-metric namespace="AzureOpenAI">
+            <dimension name="SubscriptionId" value="@(context.Subscription?.Id ?? &quot;anon&quot;)" />
+            <dimension name="ApiId" value="@(context.Api.Id)" />
+            <dimension name="OperationId" value="@(context.Operation.Id)" />
+            <dimension name="ModelDeployment" value="@(context.Request.MatchedParameters[&quot;deployment-id&quot;] ?? &quot;unknown&quot;)" />
+        </azure-openai-emit-token-metric>
+
+        <set-backend-service backend-id="foundry-openai" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
