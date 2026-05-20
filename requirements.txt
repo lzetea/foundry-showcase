@@ -1,13 +1,18 @@
 # Core Azure AI SDK
-azure-ai-projects==2.0.0
-azure-identity==1.19.0
-azure-keyvault-secrets==4.8.0
+# azure-ai-projects pinned to b3/b4 because azure-ai-agentserver-agentframework
+# 1.0.0b17 depends on agent-framework-core which pins those beta versions.
+azure-ai-projects>=2.0.0b3,<=2.0.0b4
+azure-identity>=1.25.1
+azure-keyvault-secrets>=4.8.0
 python-dotenv==1.0.1
 
 # Observability
-opentelemetry-sdk==1.29.0
-azure-core-tracing-opentelemetry==1.0.0b12
-azure-monitor-opentelemetry==1.6.5
+# Pins relaxed to satisfy langchain-azure-ai[opentelemetry]==1.1.0b1
+# (requires opentelemetry-api>=1.37) and azure-ai-agentserver-* (requires
+# opentelemetry-exporter-otlp-proto-grpc>=1.39.0).
+opentelemetry-sdk>=1.40
+azure-core-tracing-opentelemetry>=1.0.0b13
+azure-monitor-opentelemetry>=1.8.0
 
 # Data
 pandas==2.2.3
@@ -17,8 +22,10 @@ pyyaml==6.0.2
 azure-ai-agentserver-agentframework==1.0.0b17
 
 # Hosted Agents — LangGraph
+# Note: azure-ai-agentserver-langgraph==1.0.0b17 requires langchain>=1.0.3
+# and langchain-openai>=1.0.3, so we let pip resolve langchain-core and
+# langgraph transitively to avoid version conflicts.
 azure-ai-agentserver-langgraph==1.0.0b17
-langgraph==0.6.5
-langchain-core==0.3.64
-langchain-openai==0.2.14
-langchain==0.3.14
+langchain>=1.0.3,<2
+langchain-openai>=1.0.3,<2
+langchain-azure-ai[opentelemetry]==1.1.0b1

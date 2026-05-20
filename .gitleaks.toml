@@ -1,0 +1,37 @@
+# gitleaks configuration
+# Extends the default ruleset, then allowlists known false-positives.
+#
+# Why: the `generic-api-key` rule fires on lines like
+#   keyVaultSecretsUser: '4633458b-17de-408a-b874-0445c86b69e6'
+# because "Secret" appears near a GUID. That value is a *public*
+# Azure built-in role definition ID, not a secret.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [rules.allowlist]
+  description = "Allow well-known public Azure built-in role definition GUIDs and our infra/docs sample files."
+  paths = [
+    '''infra/modules/.*\.bicep''',
+    '''infra/main\.parameters\.json''',
+    '''\.env\.sample''',
+    '''README\.md''',
+  ]
+  # Public Azure built-in role definition IDs (safe to commit).
+  # https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
+  regexes = [
+    '''4633458b-17de-408a-b874-0445c86b69e6''', # Key Vault Secrets User
+    '''53ca6127-db72-4b80-b1b0-d745d6d5456d''', # Azure AI User
+    '''64702f94-c441-49e6-a78b-ef80e0188fee''', # Azure AI Developer
+    '''a97b65f3-24c7-4388-baec-2e87135dc908''', # Cognitive Services User
+    '''7f951dda-4ed3-4680-a7ca-43fe172d538d''', # AcrPull
+    '''00000000-0000-0000-0000-000000000002''', # Cosmos DB Built-in Data Contributor
+    '''b24988ac-6180-42a0-ab88-20f7382dd24c''', # Contributor
+    '''92aaf0da-9dab-42b6-94a3-d43ce8d16293''', # Log Analytics Contributor
+    '''73c42c96-874c-492b-b04d-ab87d138a893''', # Log Analytics Reader
+    '''749f88d5-cbae-40b8-bcfc-e573ddc772fa''', # Monitoring Contributor
+    '''c2f4ef07-c644-48eb-af81-4b1b4947fb11''', # (referenced in AVM module docs)
+  ]
