@@ -72,6 +72,19 @@ param enableHostedAgents bool = false
 @description('Deploy the ACA + Cosmos + Key Vault + (optional) APIM compute layer.')
 param enableComputeLayer bool = false
 
+@description('Deploy an Azure AI Search service and connect it to the Foundry project (Foundry IQ / Agent Knowledge).')
+param enableAiSearch bool = true
+
+@description('SKU for the Azure AI Search service.')
+@allowed([
+  'free'
+  'basic'
+  'standard'
+  'standard2'
+  'standard3'
+])
+param aiSearchSku string = 'standard'
+
 @description('MAF agent container image reference. Empty skips the MAF container app.')
 param mafContainerImage string = ''
 
@@ -151,6 +164,23 @@ module aiFoundry 'modules/ai-foundry.bicep' = {
     existingApplicationInsightsResourceId: existingApplicationInsightsResourceId
     existingApplicationInsightsConnectionString: existingApplicationInsightsConnectionString
     existingContainerRegistryResourceId: existingContainerRegistryResourceId
+    aiSearchResourceId: enableAiSearch ? aiSearch!.outputs.resourceId : ''
+    aiSearchEndpoint: enableAiSearch ? aiSearch!.outputs.endpoint : ''
+    aiSearchName: enableAiSearch ? aiSearch!.outputs.name : ''
+  }
+}
+
+// ============================================================
+// Azure AI Search (Foundry IQ / Agent Knowledge backend)
+// ============================================================
+module aiSearch 'modules/ai-search.bicep' = if (enableAiSearch) {
+  scope: rg
+  name: 'ai-search'
+  params: {
+    location: location
+    tags: tags
+    resourceToken: resourceToken
+    sku: aiSearchSku
   }
 }
 
@@ -209,6 +239,11 @@ output APPLICATIONINSIGHTS_CONNECTION_STRING string = aiFoundry.outputs.applicat
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = aiFoundry.outputs.containerRegistryLoginServer
 output AZURE_CONTAINER_REGISTRY_RESOURCE_ID string = aiFoundry.outputs.containerRegistryResourceId
 output AZURE_CONTAINER_REGISTRY_NAME string = aiFoundry.outputs.containerRegistryName
+
+// Azure AI Search (Foundry IQ)
+output AZURE_AI_SEARCH_ENDPOINT string = enableAiSearch ? aiSearch!.outputs.endpoint : ''
+output AZURE_AI_SEARCH_NAME string = enableAiSearch ? aiSearch!.outputs.name : ''
+output AZURE_AI_SEARCH_RESOURCE_ID string = enableAiSearch ? aiSearch!.outputs.resourceId : ''
 
 // Compute layer
 output ACA_ENVIRONMENT_NAME string = enableComputeLayer ? compute!.outputs.acaEnvironmentName : ''

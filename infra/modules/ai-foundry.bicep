@@ -54,6 +54,15 @@ param existingApplicationInsightsConnectionString string = ''
 @description('Optional existing Container Registry resource ID (must be in the same resource group). When empty, a new ACR is created.')
 param existingContainerRegistryResourceId string = ''
 
+@description('Resource ID of the Azure AI Search service to connect to the project (empty disables the connection).')
+param aiSearchResourceId string = ''
+
+@description('Endpoint of the Azure AI Search service (e.g. https://srch-xyz.search.windows.net).')
+param aiSearchEndpoint string = ''
+
+@description('Name of the Azure AI Search service (used for RBAC scoping).')
+param aiSearchName string = ''
+
 // ============================================================
 // Built-in role definition IDs
 // ============================================================
@@ -62,6 +71,8 @@ var roles = {
   azureAiDeveloper: '64702f94-c441-49e6-a78b-ef80e0188fee'
   cognitiveServicesUser: 'a97b65f3-24c7-4388-baec-2e87135dc908'
   acrPull: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+  searchIndexDataContributor: '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
+  searchServiceContributor: '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
 }
 
 var shouldCreateLaw = enableMonitoring && empty(existingLogAnalyticsResourceId)
@@ -249,6 +260,24 @@ resource acrConnection 'Microsoft.CognitiveServices/accounts/projects/connection
   }
 }
 
+// Azure AI Search — backs Foundry IQ / Agent Knowledge. AAD auth via the
+// project MI; the RBAC role assignments below grant the project read+write
+// access to indexes on this search service.
+resource searchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = if (!empty(aiSearchResourceId)) {
+  parent: aiProject
+  name: 'search-connection'
+  properties: {
+    category: 'CognitiveSearch'
+    target: aiSearchEndpoint
+    authType: 'AAD'
+    isSharedToAll: true
+    metadata: {
+      ApiType: 'Azure'
+      ResourceId: aiSearchResourceId
+    }
+  }
+}
+
 // ============================================================
 // Project-identity RBAC on the Foundry account
 // ============================================================
@@ -322,6 +351,46 @@ resource acrPullForAccount 'Microsoft.Authorization/roleAssignments@2022-04-01' 
     principalId: aiServicesAccount.outputs.systemAssignedMIPrincipalId!
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.acrPull)
+  }
+}
+
+// ============================================================
+// RBAC on the Azure AI Search service for the project MI.
+// Search Index Data Contributor: create/read/write index docs.
+// Search Service Contributor:    manage indexes/indexers/skillsets.
+// ============================================================
+resource searchRef 'Microsoft.Search/searchServices@2024-06-01-preview' existing = if (!empty(aiSearchName)) {
+  name: aiSearchName
+}
+
+resource projectSearchIndexDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiSearchResourceId)) {
+  scope: searchRef
+  name: guid(aiSearchResourceId, aiProject.id, roles.searchIndexDataContributor)
+  properties: {
+    principalId: aiProject.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.searchIndexDataContributor)
+  }
+}
+
+resource projectSearchServiceContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiSearchResourceId)) {
+  scope: searchRef
+  name: guid(aiSearchResourceId, aiProject.id, roles.searchServiceContributor)
+  properties: {
+    principalId: aiProject.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.searchServiceContributor)
+  }
+}
+
+// Also grant the deploying user data-plane access so they can manage indexes from the portal / SDK.
+resource userSearchIndexDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiSearchResourceId)) {
+  scope: searchRef
+  name: guid(aiSearchResourceId, principalId, roles.searchIndexDataContributor)
+  properties: {
+    principalId: principalId
+    principalType: principalType
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.searchIndexDataContributor)
   }
 }
 

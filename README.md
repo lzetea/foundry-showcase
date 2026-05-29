@@ -168,6 +168,28 @@ script sets `AZURE_OPENAI_ENDPOINT=APIM_OPENAI_GATEWAY_URL` and injects the
 APIM subscription key from Key Vault. No manual `az containerapp` commands
 required.
 
+#### Foundry IQ / Agent Knowledge (Azure AI Search)
+
+Bicep also provisions an **Azure AI Search** service (`srch-${resourceToken}`)
+and wires it into the Foundry project as a `CognitiveSearch` connection named
+`search-connection`. This is the knowledge layer that backs the **Foundry IQ**
+experience and any `AzureAISearchTool` used by agents.
+
+Defaults:
+
+- **SKU:** `standard` — easy to attach to multiple indexes during testing.
+  Override via the `aiSearchSku` parameter (`free`, `basic`, `standard`,
+  `standard2`, `standard3`).
+- **Auth:** AAD (the Foundry project MI gets `Search Index Data Contributor`
+  + `Search Service Contributor`; the deploying user gets
+  `Search Index Data Contributor`). API keys remain enabled by default for
+  convenience during local testing.
+- **Semantic search:** standard tier enabled.
+- Set `enableAiSearch=false` to skip the service entirely.
+
+You can attach documents in the portal under **Foundry project → Knowledge**,
+or programmatically create indexes via the SDK using `AZURE_AI_SEARCH_ENDPOINT`.
+
 ### 3. Deploy
 
 ```powershell
