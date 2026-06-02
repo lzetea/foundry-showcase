@@ -4,6 +4,6 @@ python-dotenv==1.0.1
 pandas==2.2.3
 langgraph==0.6.5
 langchain-core==0.3.64
-langchain-openai==0.2.14
+langchain-openai==1.1.14
 langchain==0.3.14
 azure-core-tracing-opentelemetry==1.0.0b12
