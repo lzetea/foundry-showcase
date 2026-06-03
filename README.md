@@ -24,47 +24,43 @@ end-to-end.
 A turnkey **Microsoft Foundry environment** plus a hands-on showcase of its
 **agentic** and **governance** capabilities — all under a single `azd up`.
 
-What you get out of the box:
+### TL;DR
 
-- **A complete Foundry sandbox** provisioned via Bicep + Azure Verified
-  Modules — Foundry account & project, a model deployment, Application
-  Insights, Container Registry, Key Vault, Cosmos DB, an APIM AI Gateway,
-  and an Azure Container Apps environment, with RBAC pre-wired for both
-  your user and the agent runtimes.
-- **Four reference agents** built on the same Contoso Travel scenario —
-  a Foundry-managed Prompt Agent (function tools), a Prompt Agent with
-  Foundry built-in tools (File Search / Code Interpreter / Bing), a
-  LangGraph app hosted on ACA behind APIM, and a Microsoft Agent Framework
-  multi-agent system. All four run side-by-side so you can compare
-  architectures, not just frameworks.
-- **Governance plumbing the same way for every agent** — unified tracing,
-  evaluation (quality / safety / agentic), and red-teaming, all driven by
-  shared scripts in `agents/shared/` and visible in the same Foundry portal
-  panes regardless of where the agent runs.
+```powershell
+git clone <repo> && cd demo-agent-observability
+.\scripts\azd-prep.ps1 -EnvName foundry-demo -Location eastus2
+azd up                                            # provision the sandbox (~30-45 min with APIM)
+pip install -r requirements.txt; .\scripts\setup-env.ps1
+python -m agents.01_prompt_agent.create_and_invoke  # first agent, end-to-end
+```
 
-Use it to:
+> Deploying with an agent? Follow the deterministic runbook in
+> [DEPLOY_AGENT.md](DEPLOY_AGENT.md) instead.
 
-- **Stand up a Foundry environment from scratch in one command** and have a
-  working baseline to extend.
-- **Decide which agent architecture fits your use case** by running the same
-  inputs through all four and reading the resulting traces and eval scores.
-- **See how a non-Foundry-native agent becomes a first-class platform asset** —
-  the LangGraph and MAF agents live on ACA behind APIM and register as
-  *external agent assets* in the Foundry Control Plane.
-- **Verify that Foundry's observability and governance surfaces (tracing,
-  evals, red-team) work uniformly across managed and BYO agents.**
+### What you get
 
-The demo specifically answers three questions:
+- **A complete Foundry sandbox** (Bicep + Azure Verified Modules): Foundry
+  account & project, a model deployment, Application Insights, Container
+  Registry, Key Vault, Cosmos DB, Azure AI Search, an APIM AI Gateway, and an
+  Azure Container Apps environment — RBAC pre-wired for your user and the agent
+  runtimes.
+- **Four reference agents** on one Contoso Travel scenario, running
+  side-by-side so you compare architectures, not just frameworks: a
+  Foundry-managed Prompt Agent (function tools), a Prompt Agent with Foundry
+  built-in tools (File Search / Code Interpreter / Bing), a LangGraph app on ACA
+  behind APIM, and a Microsoft Agent Framework multi-agent system.
+- **Governance wired identically for every agent** — tracing, evaluation
+  (quality / safety / agentic), and red-teaming, driven by shared scripts in
+  `agents/shared/` and surfaced in the same Foundry portal panes regardless of
+  where the agent runs.
 
-1. **Which agent architecture should I pick?** — compare a Foundry-managed Prompt
-   Agent, a BYO LangGraph agent on ACA, and a Microsoft Agent Framework
-   multi-agent system side-by-side.
-2. **How do I bring a non-Foundry-native agent into the platform?** — deploy a
-   LangGraph app on Azure Container Apps, front it with APIM as an **AI Gateway**,
-   and register it as an **external agent asset** in the Foundry Control Plane.
-3. **How do Foundry's built-in capabilities (tracing, evals, red-teaming,
-   Responses API, built-in tools) behave across all of those architectures?** — the
-   same eval/red-team/trace scripts target every scenario.
+### The three questions it answers
+
+| Question | How the demo answers it |
+|----------|-------------------------|
+| **Which agent architecture should I pick?** | Run the same inputs through all four; compare traces and eval scores. |
+| **How do I bring a non-Foundry-native agent into the platform?** | Deploy LangGraph on ACA, front it with APIM as an **AI Gateway**, register it as an **external agent asset** in the Control Plane. |
+| **Do Foundry's built-in capabilities behave uniformly across architectures?** | The same trace / eval / red-team scripts target every scenario. |
 
 ## Scenarios
 
@@ -124,6 +120,7 @@ public Bicep registry.
 | Container Apps Env | `avm/res/app/managed-environment:0.13.2` |
 | Container Apps | `avm/res/app/container-app:0.22.1` |
 | API Management | `avm/res/api-management/service:0.14.1` |
+| Azure AI Search | `avm/res/search/search-service:0.11.1` |
 
 Foundry project + RBAC + external-agent connection are declared inline in
 [infra/modules/ai-foundry.bicep](infra/modules/ai-foundry.bicep). APIM policies
@@ -132,41 +129,24 @@ Foundry project + RBAC + external-agent connection are declared inline in
 #### APIM as AI Gateway
 
 [infra/modules/apim-ai-gateway.bicep](infra/modules/apim-ai-gateway.bicep) turns
-the bare APIM instance into a real AI gateway with two APIs:
+the bare APIM instance into an AI gateway with two APIs:
 
-- **`/openai`** — imported from the public Azure OpenAI OpenAPI spec (version
-  `APIM_OPENAI_API_VERSION`). Inbound policies (see
-  [infra/modules/policies/azure-openai-api.xml](infra/modules/policies/azure-openai-api.xml)):
-  managed-identity auth to the Foundry Cognitive Services account, circuit
-  breaker, `azure-openai-token-limit` (`APIM_TOKEN_LIMIT_TPM`) and
-  `azure-openai-emit-token-metric`. Traffic is dispatched to backend
-  `foundry-openai` (the Foundry account endpoint).
-- **`/agents`** — typed operations per external agent subroute. For each ACA
-  agent the module registers `POST /responses`, `GET /responses/{responseId}`,
-  `POST /responses/{responseId}/cancel` under `/agents/maf` and
-  `/agents/langgraph`. Inbound policy
-  ([infra/modules/policies/agents-api.xml](infra/modules/policies/agents-api.xml))
-  does path-based backend dispatch. When `APIM_AGENTS_JWT_AUDIENCE` is set, the
-  policy enforces `validate-azure-ad-token` against
-  `APIM_AGENTS_JWT_TENANT_ID`; when empty the gateway is open (PoC default).
+| API | Source & policy | Backend dispatch |
+|-----|-----------------|------------------|
+| **`/openai`** | Azure OpenAI OpenAPI spec (`APIM_OPENAI_API_VERSION`). Policy ([azure-openai-api.xml](infra/modules/policies/azure-openai-api.xml)): managed-identity auth, circuit breaker, `azure-openai-token-limit` (`APIM_TOKEN_LIMIT_TPM`), `azure-openai-emit-token-metric`. | `foundry-openai` (Foundry account endpoint). |
+| **`/agents`** | Typed `POST /responses`, `GET /responses/{id}`, `POST /responses/{id}/cancel` under `/agents/maf` and `/agents/langgraph`. Policy ([agents-api.xml](infra/modules/policies/agents-api.xml)): path-based backend dispatch; `validate-azure-ad-token` when `APIM_AGENTS_JWT_AUDIENCE` is set (open gateway when empty — PoC default). | ACA agent FQDN per subroute. |
 
-Two APIM products (`openai`, `agents`) each get a subscription. When
-`APIM_SECRETS_TO_KEYVAULT=true` (default) their primary keys are written to Key
-Vault as `apim-openai-sub-key` / `apim-agents-sub-key` and the ACA apps' UAI is
-granted `Key Vault Secrets User` so downstream code can pull them on demand.
+Two APIM products (`openai`, `agents`) each get a subscription. With
+`APIM_SECRETS_TO_KEYVAULT=true` (default) their keys land in Key Vault as
+`apim-openai-sub-key` / `apim-agents-sub-key`, and the ACA apps' UAI gets
+`Key Vault Secrets User` to pull them.
 
-The MAF and LangGraph agents are plumbed into APIM via the URLs
-`APIM_MAF_AGENT_URL` / `APIM_LANGGRAPH_AGENT_URL`. The per-scenario
-`deploy_and_register.py` script registers each of these as a **Foundry
-project connection** automatically — you don't need to wire anything in the
-portal by hand.
-
-The ACA apps are rolled onto the gateway **by their own `deploy_and_register.py`**
-script (not by Bicep, to avoid a circular dependency between APIM learning the
-ACA FQDN and the ACA apps reading their APIM subscription key). Each scenario's
-script sets `AZURE_OPENAI_ENDPOINT=APIM_OPENAI_GATEWAY_URL` and injects the
-APIM subscription key from Key Vault. No manual `az containerapp` commands
-required.
+ACA apps are rolled onto the gateway by their own `deploy_and_register.py`
+(not Bicep) to avoid a circular dependency between APIM learning the ACA FQDN
+and the apps reading their subscription key. Each script sets
+`AZURE_OPENAI_ENDPOINT=APIM_OPENAI_GATEWAY_URL`, injects the key from Key Vault,
+and registers the agent as a Foundry project connection — no manual portal or
+`az containerapp` steps.
 
 #### Foundry IQ / Agent Knowledge (Azure AI Search)
 
@@ -242,6 +222,8 @@ Set any of these with `azd env set <KEY> <VALUE>` before `azd up`.
 | `APIM_TOKEN_LIMIT_TPM` | `100000` | `azure-openai-token-limit` tokens-per-minute counter on `/openai` |
 | `APIM_OPENAI_API_VERSION` | `2024-10-21` | OpenAPI spec version imported for `/openai` |
 | `ENABLE_COMPUTE_LAYER` | `true` | Provision ACA + Cosmos + KV + APIM |
+| `ENABLE_AI_SEARCH` | `true` | Provision Azure AI Search + Foundry connection |
+| `AZURE_AI_SEARCH_SKU` | `standard` | Search SKU (`free`/`basic`/`standard`/`standard2`/`standard3`) |
 | `LOG_ANALYTICS_RESOURCE_ID` | _(empty)_ | Reuse existing LAW |
 | `APPLICATIONINSIGHTS_RESOURCE_ID` | _(empty)_ | Reuse existing App Insights |
 | `AZURE_CONTAINER_REGISTRY_RESOURCE_ID` | _(empty)_ | Reuse existing ACR |
@@ -312,11 +294,9 @@ python -m agents.shared.evaluate --scenario 01_prompt_agent
 python -m agents.shared.redteam  --scenario 01_prompt_agent
 python -m agents.01_prompt_agent.cleanup               # teardown
 ```
-Flow: `create_and_invoke` registers a Foundry PromptAgent
-(`contoso-travel-prompt-agent`) with three `FunctionTool` declarations. The
-agent selects a tool, the Responses API returns `function_call` items, our
-client dispatches them against the CSV data in `data/contoso-travel/`, and
-feeds results back via `function_call_output` until the agent is done.
+Registers a Foundry PromptAgent (`contoso-travel-prompt-agent`) with three
+`FunctionTool` declarations; the client dispatches `function_call` items against
+the CSV data in `data/contoso-travel/` and feeds results back until done.
 
 #### 02 — LangGraph on ACA via APIM AI Gateway
 ```powershell
@@ -326,13 +306,11 @@ python -m agents.shared.evaluate --scenario 02_langgraph_aca
 python -m agents.shared.redteam  --scenario 02_langgraph_aca
 python -m agents.02_langgraph_aca.cleanup              # teardown
 ```
-Flow: `deploy_and_register` builds the LangGraph image in ACR, rolls it onto
-`ca-langgraph-agent` with APIM env wiring, and creates the project
-connection `contoso-travel-langgraph-aca-endpoint`. The shared scripts then
-invoke the agent through `APIM_GATEWAY_URL/agents/langgraph` using the
-agents subscription key pulled from Key Vault. Every hop
-(APIM `/agents` → ACA → APIM `/openai` → Foundry model) emits traces
-correlated by `x-apim-request-id`.
+Builds the LangGraph image in ACR, rolls it onto `ca-langgraph-agent` with APIM
+env wiring, and creates the connection `contoso-travel-langgraph-aca-endpoint`.
+Shared scripts invoke via `APIM_GATEWAY_URL/agents/langgraph`; every hop
+(APIM `/agents` → ACA → APIM `/openai` → Foundry model) emits traces correlated
+by `x-apim-request-id`.
 
 #### 03 — Multi-agent (MAF `HandoffBuilder`) on ACA
 ```powershell
@@ -342,13 +320,11 @@ python -m agents.shared.evaluate --scenario 03_multi_agent
 python -m agents.shared.redteam  --scenario 03_multi_agent
 python -m agents.03_multi_agent.cleanup
 ```
-Flow: same deploy shape as scenario 02, but the image runs a Microsoft
-Agent Framework workflow: a **triage** agent hands off to **flights**,
-**hotels**, **cars** specialists and a **budget validator**, all served
-behind a single `/agents/maf` Responses API by
-`azure-ai-agentserver-agentframework`. Traces in Foundry show the triage
-span, each specialist invocation, the handoff edges, and the downstream
-APIM `/openai` call per specialist turn.
+Same deploy shape as scenario 02, but the image runs a Microsoft Agent Framework
+workflow: a **triage** agent hands off to **flights**, **hotels**, **cars**
+specialists and a **budget validator**, served behind `/agents/maf` by
+`azure-ai-agentserver-agentframework`. Traces show the triage span, each
+specialist invocation, the handoff edges, and the per-turn APIM `/openai` call.
 
 #### 04 — Prompt Agent with Foundry built-in tools
 ```powershell
@@ -358,12 +334,10 @@ python -m agents.shared.evaluate --scenario 04_foundry_tools_agent
 python -m agents.shared.redteam  --scenario 04_foundry_tools_agent
 python -m agents.04_foundry_tools_agent.cleanup
 ```
-Flow: `create_and_invoke` provisions a vector store from
-`agents/04_foundry_tools_agent/data/*.md` (the store id is cached in
-`.vector_store_id` to avoid re-upload) and registers a PromptAgent with
-`FileSearchTool` + `CodeInterpreterTool`, plus `BingGroundingTool` when
-`BING_GROUNDING_CONNECTION_ID` is set. All tool execution happens
-server-side — the client just posts the query and reads `output_text`.
+Provisions a vector store from `agents/04_foundry_tools_agent/data/*.md` (id
+cached in `.vector_store_id`) and registers a PromptAgent with `FileSearchTool`
++ `CodeInterpreterTool`, plus `BingGroundingTool` when
+`BING_GROUNDING_CONNECTION_ID` is set. All tool execution is server-side.
 
 ## Project structure
 

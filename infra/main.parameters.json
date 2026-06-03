@@ -38,6 +38,12 @@
         "enableComputeLayer": {
             "value": "${ENABLE_COMPUTE_LAYER=true}"
         },
+        "enableAiSearch": {
+            "value": "${ENABLE_AI_SEARCH=true}"
+        },
+        "aiSearchSku": {
+            "value": "${AZURE_AI_SEARCH_SKU=standard}"
+        },
         "mafContainerImage": {
             "value": "${MAF_CONTAINER_IMAGE=}"
         },
