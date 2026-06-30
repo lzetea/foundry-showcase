@@ -228,7 +228,8 @@ def run_quality_evaluation(openai_client, handle, model_name):
 # Safety evaluation
 # =============================================================================
 def run_safety_evaluation(openai_client, handle):
-    """Violence + hate/unfairness + self-harm; no model deployment required."""
+    """Violence + hate/unfairness + self-harm + indirect-attack (XPIA); no model
+    deployment required."""
     print("\n--- Safety Evaluation ---")
     run_name = f"Safety Run – {handle.scenario} – {handle.version}"
     items = _generate_locally(handle, run_name, "safety", load_eval_data())
@@ -270,6 +271,15 @@ def run_safety_evaluation(openai_client, handle):
                 "type": "azure_ai_evaluator",
                 "name": "self_harm",
                 "evaluator_name": "builtin.self_harm",
+                "data_mapping": {
+                    "query": "{{item.query}}",
+                    "response": "{{item.response}}",
+                },
+            },
+            {
+                "type": "azure_ai_evaluator",
+                "name": "indirect_attack",
+                "evaluator_name": "builtin.indirect_attack",
                 "data_mapping": {
                     "query": "{{item.query}}",
                     "response": "{{item.response}}",

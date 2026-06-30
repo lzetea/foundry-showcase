@@ -14,6 +14,7 @@ Lifecycle rules for this scenario:
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from azure.ai.projects.models import FunctionTool, PromptAgentDefinition
 from openai.types.responses.response_input_param import FunctionCallOutput
@@ -22,20 +23,10 @@ from agents.shared.tools import TOOL_MAP
 
 AGENT_NAME = "contoso-travel-prompt-agent"
 
-SYSTEM_PROMPT = """\
-You are the Contoso Travel Concierge — a friendly, knowledgeable travel assistant.
-
-Your capabilities:
-- Search flights by origin, destination, cabin class, or max price
-- Search hotels by city, star rating, price, or amenity
-- Search car rentals by city, car type, or max daily price
-
-Guidelines:
-1. Always use the available tools to look up real inventory before answering.
-2. Present results clearly with prices, ratings, and key details.
-3. If a query spans multiple categories (flight + hotel + car), search all of them.
-4. Be conversational and helpful. If you cannot find results, say so honestly.
-"""
+# Instructions live in versioned, ASCII-only Markdown so they can be diffed,
+# A/B-tested, and fed to the Foundry prompt optimizer without mojibake.
+_INSTRUCTIONS_DIR = Path(__file__).resolve().parent / "instructions"
+SYSTEM_PROMPT = (_INSTRUCTIONS_DIR / "concierge.md").read_text(encoding="utf-8")
 
 FLIGHT_TOOL = FunctionTool(
     name="search_flights",

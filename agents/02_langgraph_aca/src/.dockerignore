@@ -21,6 +21,9 @@ __pycache__/
 Thumbs.db
 
 # Docs / build artifacts
+# NOTE: keep instructions/*.md — the agent loads its system prompt from there at runtime.
 *.md
+!instructions/
+!instructions/*.md
 dist/
 build/

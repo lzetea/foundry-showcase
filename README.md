@@ -15,7 +15,7 @@ end-to-end.
 > networking, APIM `/agents` JWT validation off by default, Key Vault purge
 > protection disabled, Cosmos serverless single-region, ACA on a public
 > placeholder image until per-scenario `deploy_and_register.py` rolls the real
-> one. Pinned to current Foundry SDK surfaces (`azure-ai-projects==2.0.0`,
+> one. Pinned to current Foundry SDK surfaces (`azure-ai-projects` 2.0.0b3-b4,
 > `azure-ai-agentserver-*==1.0.0b17`), some of which are still in beta — pin
 > deliberately or upgrade with care. Not production-ready as shipped; see the
 > [PoC-friendly defaults](#poc-friendly-defaults-revisit-before-production)

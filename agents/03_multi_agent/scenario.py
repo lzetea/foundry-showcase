@@ -10,6 +10,7 @@ from Key Vault.
 from __future__ import annotations
 
 from agents.shared.aca_connection import apim_agents_client, current_revision
+from agents.shared.config import MODEL_NAME
 from agents.shared.registry import AgentHandle
 
 AGENT_NAME = "contoso-travel-multiagent"
@@ -23,7 +24,7 @@ def build_handle() -> AgentHandle:
     version = current_revision(CONTAINER_APP_NAME)
 
     def invoke(query: str) -> str:
-        response = client.responses.create(input=query, model="gpt-5")
+        response = client.responses.create(input=query, model=MODEL_NAME)
         return response.output_text or ""
 
     return AgentHandle(

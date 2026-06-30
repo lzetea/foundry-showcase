@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 MODEL_DEPLOYMENT = os.getenv(
     "MODEL_DEPLOYMENT_NAME",
-    os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-4.1"),
+    os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5"),
 )
 PROJECT_ENDPOINT = os.getenv("AZURE_AI_PROJECT_ENDPOINT", "").strip()
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -163,58 +163,20 @@ def build_chat_client():
 
 
 # ---------------------------------------------------------------------------
-# Specialist instructions
+# Specialist instructions (versioned, ASCII-only Markdown under instructions/)
 # ---------------------------------------------------------------------------
-TRIAGE_INSTRUCTIONS = """\
-You are the Contoso Travel **Triage** agent — the single entry point for the
-traveller.
+INSTRUCTIONS_DIR = Path(__file__).resolve().parent / "instructions"
 
-Your job:
-1. Understand what the traveller is trying to book (flights, hotels, cars,
-   or any combination) and their budget if mentioned.
-2. Hand off to the right specialist(s):
-   - ``flights_specialist`` for any air-travel question
-   - ``hotels_specialist`` for accommodation
-   - ``cars_specialist`` for ground transport
-3. When the specialists have returned proposed options, hand off to the
-   ``budget_validator`` to confirm the total trip cost is within policy.
-4. Only respond to the traveller yourself when the validator has signed off
-   or when the request is a simple greeting / clarification.
 
-Do not try to call search tools yourself — delegate.
-"""
+def _load_instructions(name: str) -> str:
+    return (INSTRUCTIONS_DIR / name).read_text(encoding="utf-8")
 
-FLIGHTS_INSTRUCTIONS = """\
-You are the Contoso Travel **Flights Specialist**. Use the ``search_flights``
-tool to find available flights that match the request. Present the top 3
-options with origin, destination, cabin class, airline, and price. After
-proposing options, hand off back to ``triage``.
-"""
 
-HOTELS_INSTRUCTIONS = """\
-You are the Contoso Travel **Hotels Specialist**. Use the ``search_hotels``
-tool to find available hotels that match the request. Present the top 3
-options with name, city, star rating, nightly price, and key amenities.
-After proposing options, hand off back to ``triage``.
-"""
-
-CARS_INSTRUCTIONS = """\
-You are the Contoso Travel **Car Rentals Specialist**. Use the
-``search_car_rentals`` tool to find available vehicles that match the
-request. Present the top 3 options with car type, daily price, and vendor.
-After proposing options, hand off back to ``triage``.
-"""
-
-BUDGET_INSTRUCTIONS = """\
-You are the Contoso Travel **Budget Validator**. Read the proposed trip
-from the conversation so far and compute the total cost. Contoso corporate
-policy is **USD 3,500 per trip** unless the traveller explicitly states a
-different budget.
-
-If the total is within budget, reply with a one-line confirmation and hand
-off back to ``triage``. If it exceeds budget, flag the overage in dollars,
-suggest which component(s) to reduce, and hand off back to ``triage``.
-"""
+TRIAGE_INSTRUCTIONS = _load_instructions("triage.md")
+FLIGHTS_INSTRUCTIONS = _load_instructions("flights.md")
+HOTELS_INSTRUCTIONS = _load_instructions("hotels.md")
+CARS_INSTRUCTIONS = _load_instructions("cars.md")
+BUDGET_INSTRUCTIONS = _load_instructions("budget.md")
 
 
 # ---------------------------------------------------------------------------

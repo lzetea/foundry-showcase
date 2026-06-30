@@ -39,8 +39,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-MODEL_DEPLOYMENT = os.getenv("MODEL_DEPLOYMENT_NAME", os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-4.1"))
+MODEL_DEPLOYMENT = os.getenv("MODEL_DEPLOYMENT_NAME", os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5"))
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+INSTRUCTIONS_DIR = os.path.join(os.path.dirname(__file__), "instructions")
 
 # ---------------------------------------------------------------------------
 # Load Contoso Travel data
@@ -169,22 +170,8 @@ def llm_with_tools():
 # ---------------------------------------------------------------------------
 # Graph nodes
 # ---------------------------------------------------------------------------
-SYSTEM_MESSAGE = SystemMessage(
-    content="""\
-You are the Contoso Travel Concierge — a friendly, knowledgeable travel assistant.
-
-Your capabilities:
-- Search flights by origin, destination, cabin class, or max price
-- Search hotels by city, star rating, price, or amenity
-- Search car rentals by city, car type, or max daily price
-
-Guidelines:
-1. Always use the available tools to look up real inventory before answering.
-2. Present results clearly with prices, ratings, and key details.
-3. If a query spans multiple categories, search all of them.
-4. Be conversational and helpful.
-"""
-)
+with open(os.path.join(INSTRUCTIONS_DIR, "concierge.md"), encoding="utf-8") as _fh:
+    SYSTEM_MESSAGE = SystemMessage(content=_fh.read())
 
 
 def llm_call(state: MessagesState):

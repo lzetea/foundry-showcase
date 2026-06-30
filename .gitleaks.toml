@@ -13,13 +13,7 @@ useDefault = true
 id = "generic-api-key"
 
   [rules.allowlist]
-  description = "Allow well-known public Azure built-in role definition GUIDs and our infra/docs sample files."
-  paths = [
-    '''infra/modules/.*\.bicep''',
-    '''infra/main\.parameters\.json''',
-    '''\.env\.sample''',
-    '''README\.md''',
-  ]
+  description = "Allow only well-known public Azure built-in role definition GUIDs, matched by value anywhere. No blanket per-file allowlisting, so a real secret accidentally committed to README/.env.sample/infra is still caught."
   # Public Azure built-in role definition IDs (safe to commit).
   # https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
   regexes = [

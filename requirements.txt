@@ -22,9 +22,13 @@ pyyaml==6.0.2
 azure-ai-agentserver-agentframework==1.0.0b17
 
 # Hosted Agents — LangGraph
-# Note: azure-ai-agentserver-langgraph==1.0.0b17 requires langchain>=1.0.3
-# and langchain-openai>=1.0.3, so we let pip resolve langchain-core and
-# langgraph transitively to avoid version conflicts.
+# These are control-plane / local-dev deps only. The LangGraph and MAF *container
+# images* pin their own, intentionally independent LangChain versions in
+# agents/02_langgraph_aca/src/requirements.txt and
+# agents/03_multi_agent/src/requirements.txt — those are the authoritative,
+# tested runtime pins. The specifiers below only need to satisfy the agentserver
+# and observability packages the shared scripts import; LangChain is pulled in
+# transitively and is not imported directly by any locally-run module.
 azure-ai-agentserver-langgraph==1.0.0b17
 langchain>=1.0.3,<2
 langchain-openai>=1.0.3,<2
