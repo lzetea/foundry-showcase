@@ -17,6 +17,24 @@ Agents, multi-agent, BYO via AI Gateway, Foundry-hosted) and **governance**
 > as shipped — see [PoC-friendly defaults](#poc-friendly-defaults-revisit-before-production)
 > for what to harden first.
 
+## Contents
+
+- [TL;DR](#tldr)
+- [What you get](#what-you-get)
+- [Scenarios](#scenarios)
+- [Quick Start](#quick-start)
+  - [Prerequisites](#1-prerequisites)
+  - [Infrastructure](#2-infrastructure)
+  - [Deploy](#3-deploy)
+  - [Configuration knobs](#4-configuration-knobs)
+  - [PoC-friendly defaults](#poc-friendly-defaults-revisit-before-production)
+- [Running the demos](#running-the-demos)
+  - [Scenario lifecycle](#scenario-lifecycle)
+  - [Per-scenario demo flow](#per-scenario-demo-flow)
+- [Project structure](#project-structure)
+- [Demo narrative](#demo-narrative)
+- [Resources](#resources)
+
 ### TL;DR
 
 ```powershell
@@ -32,16 +50,15 @@ python -m agents.01_prompt_agent.create_and_invoke  # first agent, end-to-end
 
 ### What you get
 
-- **A complete Foundry sandbox** (Bicep + Azure Verified Modules): Foundry
-  account & project, a model deployment, Application Insights, Container
-  Registry, Key Vault, Cosmos DB, Azure AI Search, an APIM AI Gateway, and an
-  Azure Container Apps environment — RBAC pre-wired for your user and the agent
-  runtimes.
+- **A complete Foundry sandbox** (Bicep + Azure Verified Modules) — a Foundry
+  account & project with a model deployment, plus the supporting layers:
+  observability (Application Insights + Log Analytics), an APIM AI Gateway, and
+  compute (Container Apps, ACR, Key Vault, Cosmos DB, Azure AI Search). RBAC is
+  pre-wired for your user and the agent runtimes.
 - **Four reference agents** on one Contoso Travel scenario, running
-  side-by-side so you compare architectures, not just frameworks: a
-  Foundry-managed Prompt Agent (function tools), a LangGraph app on ACA behind
-  an APIM AI Gateway, a Microsoft Agent Framework multi-agent system on ACA, and
-  a Foundry-hosted agent (Foundry builds and runs the container for you).
+  side-by-side so you compare architectures, not just frameworks — from a
+  Foundry-managed Prompt Agent to a Foundry-hosted container (full list in
+  [Scenarios](#scenarios)).
 - **Governance wired identically for every agent** — tracing, evaluation
   (quality / safety / agentic), and red-teaming, driven by shared scripts in
   `agents/shared/` and surfaced in the same Foundry portal panes regardless of
@@ -52,7 +69,7 @@ python -m agents.01_prompt_agent.create_and_invoke  # first agent, end-to-end
 | Question | How the demo answers it |
 |----------|-------------------------|
 | **Which agent architecture should I pick?** | Run the same inputs through all four; compare traces and eval scores. |
-| **How do I bring a non-Foundry-native agent into the platform?** | Deploy LangGraph on ACA, front it with APIM as an **AI Gateway**, register it as an **external agent asset** in the Control Plane. |
+| **How do I bring a non-Foundry-native agent into the platform?** | Deploy LangGraph on ACA, front it with APIM as an **AI Gateway**, register it as a Foundry **project connection** in the Control Plane. |
 | **Do Foundry's built-in capabilities behave uniformly across architectures?** | The same trace / eval / red-team scripts target every scenario. |
 
 ## Scenarios
@@ -60,7 +77,7 @@ python -m agents.01_prompt_agent.create_and_invoke  # first agent, end-to-end
 | # | Scenario | Framework | Hosting | What it showcases |
 |---|----------|-----------|---------|-------------------|
 | **01** | [Prompt Agent](agents/01_prompt_agent) | Azure AI Projects Responses API + function tools | **Foundry-managed** | Simplest path — declarative instructions + tools, Foundry routes. |
-| **02** | [LangGraph on ACA via AI Gateway](agents/02_langgraph_aca) | LangGraph + `azure.ai.agentserver.langgraph` | **Azure Container Apps**, fronted by **APIM AI Gateway**, registered as a Foundry **external agent asset** | BYO agent → control-plane citizen. Token quotas, semantic cache, managed-identity passthrough, end-to-end tracing. |
+| **02** | [LangGraph on ACA via AI Gateway](agents/02_langgraph_aca) | LangGraph + `azure.ai.agentserver.langgraph` | **Azure Container Apps**, fronted by **APIM AI Gateway**, registered as a Foundry **project connection** | BYO agent → control-plane citizen. Token quotas, semantic cache, managed-identity passthrough, end-to-end tracing. |
 | **03** | [Multi-Agent (MAF)](agents/03_multi_agent) | Microsoft Agent Framework (agents-as-tools) | **Azure Container Apps** | A triage agent orchestrates flights / hotels / cars specialists + a budget-compliance validator. Illustrates multi-agent orchestration. |
 | **04** | [Foundry Hosted Agent](agents/04_hosted_agent) | Microsoft Agent Framework + `agent-framework-foundry-hosting` | **Foundry-hosted** (managed container + Entra agent identity) | Same containerized agent code as 02/03, but **Foundry builds and runs it** — no ACA, no APIM, no keys. The "vs bring-your-own-infrastructure" contrast. |
 
@@ -68,12 +85,6 @@ All four scenarios share the same Contoso Travel [data](data/contoso-travel/) an
 the same [shared utilities](agents/shared/). Tracing, evaluation and
 red-teaming are implemented **once** in `agents/shared/` and targeted at each
 scenario by name.
-
-> **Note** — Scenarios 02–03 show the **bring-your-own-container** path (your
-> image on ACA, fronted by the APIM AI Gateway); scenario 04 shows the
-> **Foundry-hosted** path (Foundry builds and runs the same kind of container
-> with a managed Entra agent identity — no ACA, no gateway, no keys). The two
-> hosting models sit side by side.
 
 ## Quick Start
 
@@ -95,18 +106,17 @@ Azure-side:
   (default: `gpt-5` GlobalStandard, 10K TPM).
 - A valid **publisher email** (APIM is provisioned by default for scenario 02).
 
-**Greenfield by default**: the Bicep creates a fresh Foundry resource, project,
-Log Analytics, App Insights, ACR, Container Apps Env, Cosmos DB, Key Vault, APIM.
+**Greenfield by default**: the Bicep provisions everything fresh. To reuse
+existing resources, point the `*_RESOURCE_ID` knobs below at your Log Analytics /
+App Insights / ACR.
 
 ### 2. Infrastructure
 
 Infra lives under [infra/](infra/) and is built almost entirely from **[Azure
-Verified Modules](https://aka.ms/avm)** — Log Analytics, App Insights, ACR, the
-Foundry account, a user-assigned identity, Key Vault, Cosmos DB, the ACA
-environment + apps, APIM, and Azure AI Search (see
-[infra/main.bicep](infra/main.bicep) for the pinned module versions). The Foundry
-project + RBAC + external-agent connection are declared inline in
-[infra/modules/ai-foundry.bicep](infra/modules/ai-foundry.bicep), and the APIM AI
+Verified Modules](https://aka.ms/avm)** — see [infra/main.bicep](infra/main.bicep)
+for the full set and pinned module versions. The Foundry project and its RBAC are
+declared inline in
+[infra/modules/ai-foundry.bicep](infra/modules/ai-foundry.bicep); the APIM AI
 Gateway policies live in
 [infra/modules/apim-ai-gateway.bicep](infra/modules/apim-ai-gateway.bicep).
 
@@ -209,15 +219,9 @@ back to the placeholder image, deletes the Foundry connection). See the
 
 ## Running the demos
 
-Install local deps once:
-
-```powershell
-pip install -r requirements.txt
-.\scripts\setup-env.ps1
-```
-
-Every scenario exposes the same three lifecycle scripts plus a common
-`scenario.py` adapter used by the shared trace / evaluate / redteam scripts.
+With `.env` hydrated (the [Deploy](#3-deploy) step above), every scenario exposes
+the same three lifecycle scripts plus a common `scenario.py` adapter used by the
+shared trace / evaluate / redteam scripts.
 
 ### Scenario lifecycle
 
@@ -310,6 +314,7 @@ demo-agent-observability/
 │   ├── main.parameters.json
 │   └── modules/
 │       ├── ai-foundry.bicep           # Foundry account + project + RBAC
+│       ├── ai-search.bicep            # Azure AI Search + Foundry connection
 │       ├── compute-layer.bicep        # UAI + KV + Cosmos + ACA env + ACA apps + APIM
 │       └── apim-ai-gateway.bicep      # AI Gateway policies (/openai, /agents)
 │
@@ -356,10 +361,10 @@ demo-agent-observability/
 
 1. **Pick your architecture** — four agents, one Contoso Travel scenario, same
    inputs and outputs, radically different implementations. Run each and compare.
-2. **BYO agent becomes a first-class asset** — scenario 02's container → ACA
-   revision → APIM route (token-quota / semantic-cache / MI policies) → external
-   agent connection lands in the Foundry Control Plane, listed in the portal's
-   Agents catalog next to the native ones.
+2. **BYO agent becomes a first-class citizen** — scenario 02's container → ACA
+   revision → APIM route (token-quota / semantic-cache / MI policies) → a Foundry
+   **project connection**, discoverable in the Control Plane with the same RBAC,
+   tracing, and eval surface as the native agents.
 3. **Unified observability** — all four agents emit spans to the same App
    Insights / Foundry Tracing view. Span depth grows with the architecture:
    function-tool calls (prompt agent) → graph nodes (LangGraph) → nested
@@ -380,9 +385,9 @@ identity can't be an `azure_ai_agent` eval target. In the portal, filter the
 Tracing pane by `evaluation.run_name` to line each score up with the trace that
 produced it.
 
-**Red-teaming scope:** the server-side orchestrator targets Foundry PromptAgents
-via `AzureAIAgentTarget(name, version)`, so it runs directly for scenarios **01**
-and **04**; **02/03** print a skip (connection-backed targets aren't supported
+**Red-teaming scope:** the server-side orchestrator targets Foundry-registered
+agent assets via `AzureAIAgentTarget(name, version)`, so it runs directly for
+scenarios **01** and **04**; **02/03** print a skip (connection-backed targets aren't supported
 yet — extend with [`azure-ai-evaluation.red_team.RedTeam`](https://learn.microsoft.com/azure/foundry/concepts/ai-red-teaming-agent)
 using `handle.invoke` as the callback target).
 
