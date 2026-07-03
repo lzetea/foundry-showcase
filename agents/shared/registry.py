@@ -19,7 +19,7 @@ SCENARIOS: list[str] = [
     "01_prompt_agent",
     "02_langgraph_aca",
     "03_multi_agent",
-    "04_foundry_tools_agent",
+    "04_hosted_agent",
 ]
 
 

@@ -1,6 +1,6 @@
 ﻿"""
 Contoso Travel LangGraph Agent — runs on Azure Container Apps, fronted by
-an APIM AI Gateway, and registered as an external agent in Microsoft Foundry.
+an APIM AI Gateway, and registered as a custom agent in Microsoft Foundry.
 
 Control flow:
   START -> llm_call -┬- (tool calls?) -> tool_node -> llm_call (loop)
@@ -13,8 +13,8 @@ Model access:
   - Otherwise it falls back to direct Foundry with AAD auth.
 
 Server:
-  ``from_langgraph(agent).run()`` binds an HTTP server on 0.0.0.0:8088
-  exposing the OpenAI Responses API contract.
+  ``FoundryCorrelatedAdapter(agent).run()`` binds an HTTP server on
+  0.0.0.0:8088 exposing the OpenAI Responses API contract.
 """
 
 import json
@@ -31,7 +31,7 @@ from langchain_core.tools import tool
 from langgraph.graph import END, START, MessagesState, StateGraph
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-from azure.ai.agentserver.langgraph import from_langgraph
+from azure.ai.agentserver.langgraph import LangGraphAdapter
 
 load_dotenv(override=True)
 logger = logging.getLogger(__name__)
@@ -42,6 +42,14 @@ logger = logging.getLogger(__name__)
 MODEL_DEPLOYMENT = os.getenv("MODEL_DEPLOYMENT_NAME", os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5"))
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 INSTRUCTIONS_DIR = os.path.join(os.path.dirname(__file__), "instructions")
+
+# Foundry Control Plane correlates a *registered custom agent* to its traces via
+# the ``gen_ai.agent.id`` / ``gen_ai.agent.name`` span attributes (see
+# https://aka.ms/foundry/register-custom-agent). The value must match the
+# "OpenTelemetry agent ID" set at registration -- or, when that field is left
+# blank, the agent's display name. We read ``AGENT_NAME`` (the same variable the
+# agentserver's own tracer uses) so a single env var drives the whole correlation.
+AGENT_IDENTIFIER = os.getenv("AGENT_NAME", "contoso-travel-langgraph-agent")
 
 # ---------------------------------------------------------------------------
 # Load Contoso Travel data
@@ -140,17 +148,26 @@ def llm_with_tools():
     if _llm_with_tools is not None:
         return _llm_with_tools
 
-    apim_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
+    apim_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip().rstrip("/")
+    # The APIM AI-Gateway URL is published with an ``/openai`` suffix, but the
+    # Azure OpenAI SDK re-appends ``/openai/deployments/...`` itself. Strip it so
+    # we don't end up calling ``/openai/openai/...`` (404 Resource not found).
+    if apim_endpoint.endswith("/openai"):
+        apim_endpoint = apim_endpoint[: -len("/openai")]
     apim_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
     api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
 
     if apim_endpoint and apim_key:
         logger.info("Routing model calls through APIM AI Gateway: %s", apim_endpoint)
+        # APIM authenticates the caller with its subscription key in the
+        # ``Ocp-Apim-Subscription-Key`` header; the SDK's ``api-key`` header is
+        # not treated as the APIM subscription key.
         llm = init_chat_model(
             f"azure_openai:{MODEL_DEPLOYMENT}",
             azure_endpoint=apim_endpoint,
             api_key=apim_key,
             api_version=api_version,
+            default_headers={"Ocp-Apim-Subscription-Key": apim_key},
         )
     else:
         logger.info("Routing model calls direct to Foundry with AAD auth.")
@@ -226,7 +243,33 @@ def build_agent():
     )
     builder.add_edge("tool_node", "llm_call")
 
-    return builder.compile()
+    # ``name`` becomes the graph's runnable name, which the OpenTelemetry tracer
+    # reports as ``gen_ai.agent.name`` on the ``invoke_agent`` span (otherwise it
+    # defaults to the generic "LangGraph").
+    return builder.compile(name=AGENT_IDENTIFIER)
+
+
+# ---------------------------------------------------------------------------
+# Agent server adapter
+# ---------------------------------------------------------------------------
+class FoundryCorrelatedAdapter(LangGraphAdapter):
+    """LangGraph adapter that stamps the registered Foundry agent identity onto
+    each run's OpenTelemetry spans.
+
+    The agentserver auto-creates an ``AzureAIOpenTelemetryTracer`` with only a
+    ``name`` (its ``agent_id`` defaults to ``None``), so ``gen_ai.agent.id`` comes
+    out empty and the Foundry Control Plane can't tie the traces to the registered
+    custom agent. We inject ``agent_id`` into the runnable config metadata; the
+    tracer reads it and stamps ``gen_ai.agent.id`` onto the ``invoke_agent`` span.
+    """
+
+    def ensure_runnable_config(self, input_arguments, context):
+        super().ensure_runnable_config(input_arguments, context)
+        config = input_arguments.get("config") or {}
+        metadata = config.get("metadata") or {}
+        metadata.setdefault("agent_id", AGENT_IDENTIFIER)
+        config["metadata"] = metadata
+        input_arguments["config"] = config
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +278,7 @@ def build_agent():
 if __name__ == "__main__":
     try:
         agent = build_agent()
-        adapter = from_langgraph(agent)
+        adapter = FoundryCorrelatedAdapter(agent)
         print("Contoso Travel LangGraph Agent running on http://localhost:8088")
         adapter.run()
     except Exception:

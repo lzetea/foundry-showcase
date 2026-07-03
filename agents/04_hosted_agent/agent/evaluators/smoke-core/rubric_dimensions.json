@@ -1,0 +1,33 @@
+[
+  {
+    "id": "correct_scope_and_no_tool_for_nontravel",
+    "description": "For requests that are not about booking travel (e.g., purely informational/tax/legal/admin needs), the agent politely declines or redirects, does not call `search_flights` or `search_hotels`, and does not present specific flight/hotel offers.",
+    "weight": 9
+  },
+  {
+    "id": "tool_grounded_recommendations_match_results",
+    "description": "Every specific flight/hotel attribute the agent recommends (e.g., itinerary/segment details, flight times, hotel name/room type, dates/check-in-out alignment, cabin/class, and any shown prices/availability/fees) matches the corresponding fields in the most recent relevant `search_flights`/`search_hotels` tool output; the agent does not fabricate such details.",
+    "weight": 6
+  },
+  {
+    "id": "handles_empty_or_error_without_fabrication",
+    "description": "If `search_flights`/`search_hotels` returns empty results or an error, the agent does not claim specific availability/prices as if inventory exists; instead it proposes next steps by adjusting parameters (e.g., broader dates/locations or disclosed flexibility) and/or offering viable alternative options to search.",
+    "weight": 5
+  },
+  {
+    "id": "efficient_missing_info_handling_and_reasonable_defaults",
+    "description": "When key search inputs are missing, the agent asks only for the minimum necessary information to run the next effective tool call; otherwise it uses reasonable defaults for non-critical fields, clearly states any assumptions, and avoids clarification loops.",
+    "weight": 3
+  },
+  {
+    "id": "constraint_consistency_across_turns",
+    "description": "Across multi-turn exchanges, the agent’s later tool queries and final recommendations remain consistent with the user-stated constraints (origin/destination, dates, travelers count, budget, preferences); if a constraint effectively changes, the agent first re-checks via a new tool search and/or clearly updates the stated assumptions/parameters.",
+    "weight": 1
+  },
+  {
+    "id": "general_quality",
+    "description": "Other important quality factors not covered by listed criteria.",
+    "weight": 5,
+    "always_applicable": true
+  }
+]

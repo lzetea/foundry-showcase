@@ -6,23 +6,16 @@
 [![CI](https://github.com/lzetea/foundry-showcase/actions/workflows/ci.yml/badge.svg)](https://github.com/lzetea/foundry-showcase/actions/workflows/ci.yml)
 
 A single Contoso Travel scenario implemented as four progressively richer agent
-architectures, all unified under the **Microsoft Foundry Control Plane** — so
-you can stand up a Foundry environment in one command and explore its **agentic** (Prompt Agents, built-in tools, multi-agent, BYO via
-AI Gateway) and **governance** (tracing, evals, red-teaming) capabilities
-end-to-end.
+architectures, all unified under the **Microsoft Foundry Control Plane** — stand
+up a Foundry environment in one `azd up` and explore its **agentic** (Prompt
+Agents, multi-agent, BYO via AI Gateway, Foundry-hosted) and **governance**
+(tracing, evals, red-teaming) capabilities end-to-end.
 
-> **Status — personal demo repo.** PoC defaults throughout: no private
-> networking, APIM `/agents` JWT validation off by default, Key Vault purge
-> protection disabled, Cosmos serverless single-region, ACA on a public
-> placeholder image until per-scenario `deploy_and_register.py` rolls the real
-> one. Pinned to current Foundry SDK surfaces (`azure-ai-projects` 2.0.0b3-b4,
-> `azure-ai-agentserver-*==1.0.0b17`), some of which are still in beta — pin
-> deliberately or upgrade with care. Not production-ready as shipped; see the
-> [PoC-friendly defaults](#poc-friendly-defaults-revisit-before-production)
-> section for what to harden before any non-demo use.
-
-A turnkey **Microsoft Foundry environment** plus a hands-on showcase of its
-**agentic** and **governance** capabilities — all under a single `azd up`.
+> **Status — personal demo repo.** PoC defaults throughout (no private
+> networking, open APIM `/agents` gateway, Key Vault purge protection off,
+> serverless single-region Cosmos, beta Foundry SDK pins). Not production-ready
+> as shipped — see [PoC-friendly defaults](#poc-friendly-defaults-revisit-before-production)
+> for what to harden first.
 
 ### TL;DR
 
@@ -46,9 +39,9 @@ python -m agents.01_prompt_agent.create_and_invoke  # first agent, end-to-end
   runtimes.
 - **Four reference agents** on one Contoso Travel scenario, running
   side-by-side so you compare architectures, not just frameworks: a
-  Foundry-managed Prompt Agent (function tools), a Prompt Agent with Foundry
-  built-in tools (File Search / Code Interpreter / Bing), a LangGraph app on ACA
-  behind APIM, and a Microsoft Agent Framework multi-agent system.
+  Foundry-managed Prompt Agent (function tools), a LangGraph app on ACA behind
+  an APIM AI Gateway, a Microsoft Agent Framework multi-agent system on ACA, and
+  a Foundry-hosted agent (Foundry builds and runs the container for you).
 - **Governance wired identically for every agent** — tracing, evaluation
   (quality / safety / agentic), and red-teaming, driven by shared scripts in
   `agents/shared/` and surfaced in the same Foundry portal panes regardless of
@@ -68,17 +61,19 @@ python -m agents.01_prompt_agent.create_and_invoke  # first agent, end-to-end
 |---|----------|-----------|---------|-------------------|
 | **01** | [Prompt Agent](agents/01_prompt_agent) | Azure AI Projects Responses API + function tools | **Foundry-managed** | Simplest path — declarative instructions + tools, Foundry routes. |
 | **02** | [LangGraph on ACA via AI Gateway](agents/02_langgraph_aca) | LangGraph + `azure.ai.agentserver.langgraph` | **Azure Container Apps**, fronted by **APIM AI Gateway**, registered as a Foundry **external agent asset** | BYO agent → control-plane citizen. Token quotas, semantic cache, managed-identity passthrough, end-to-end tracing. |
-| **03** | [Multi-Agent (MAF Handoff)](agents/03_multi_agent) | Microsoft Agent Framework + `HandoffBuilder` | **Azure Container Apps** | Triage → specialist handoffs (flights / hotels / cars) → budget-compliance validator. Illustrates orchestration patterns. |
-| **04** | [Prompt Agent with Foundry Built-in Tools](agents/04_foundry_tools_agent) | Responses API | **Foundry-managed** | File Search, Code Interpreter, Bing Grounding — out-of-the-box Foundry tools, no custom code. |
+| **03** | [Multi-Agent (MAF)](agents/03_multi_agent) | Microsoft Agent Framework (agents-as-tools) | **Azure Container Apps** | A triage agent orchestrates flights / hotels / cars specialists + a budget-compliance validator. Illustrates multi-agent orchestration. |
+| **04** | [Foundry Hosted Agent](agents/04_hosted_agent) | Microsoft Agent Framework + `agent-framework-foundry-hosting` | **Foundry-hosted** (managed container + Entra agent identity) | Same containerized agent code as 02/03, but **Foundry builds and runs it** — no ACA, no APIM, no keys. The "vs bring-your-own-infrastructure" contrast. |
 
 All four scenarios share the same Contoso Travel [data](data/contoso-travel/) and
 the same [shared utilities](agents/shared/). Tracing, evaluation and
 red-teaming are implemented **once** in `agents/shared/` and targeted at each
 scenario by name.
 
-> **Note** — Foundry *Hosted Agents* (capabilityHost-managed containers) were
-> intentionally dropped from this demo. For the BYO-container story we use ACA +
-> AI Gateway instead, which mirrors most real customer deployments.
+> **Note** — Scenarios 02–03 show the **bring-your-own-container** path (your
+> image on ACA, fronted by the APIM AI Gateway); scenario 04 shows the
+> **Foundry-hosted** path (Foundry builds and runs the same kind of container
+> with a managed Entra agent identity — no ACA, no gateway, no keys). The two
+> hosting models sit side by side.
 
 ## Quick Start
 
@@ -87,7 +82,7 @@ scenario by name.
 | Tool | Version | Purpose |
 |------|---------|---------|
 | [Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/install-azure-cli) | 2.60+ | Authentication, RBAC, resource discovery |
-| [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) | 1.10+ | `azd up` provisioning |
+| [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) | 1.25+ | `azd up` provisioning; `azd ai agent` for scenario 04 (needs the `azure.ai.agents` extension) |
 | [Bicep CLI](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) | 0.30+ | Bundled with recent `az` |
 | [PowerShell](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) | 5.1 or 7+ | `azd-prep.ps1`, `setup-env.ps1` |
 | [Python](https://www.python.org/downloads/) | 3.12+ | Running demos |
@@ -105,70 +100,36 @@ Log Analytics, App Insights, ACR, Container Apps Env, Cosmos DB, Key Vault, APIM
 
 ### 2. Infrastructure
 
-Infra lives under [infra/](infra/) and uses **Azure Verified Modules** from the
-public Bicep registry.
-
-| Resource | AVM Module |
-|----------|------------|
-| Log Analytics | `avm/res/operational-insights/workspace:0.15.0` |
-| Application Insights | `avm/res/insights/component:0.7.1` |
-| Container Registry | `avm/res/container-registry/registry:0.12.1` |
-| Foundry account | `avm/res/cognitive-services/account:0.14.2` |
-| User-Assigned Identity | `avm/res/managed-identity/user-assigned-identity:0.5.0` |
-| Key Vault | `avm/res/key-vault/vault:0.13.3` |
-| Cosmos DB | `avm/res/document-db/database-account:0.19.0` |
-| Container Apps Env | `avm/res/app/managed-environment:0.13.2` |
-| Container Apps | `avm/res/app/container-app:0.22.1` |
-| API Management | `avm/res/api-management/service:0.14.1` |
-| Azure AI Search | `avm/res/search/search-service:0.11.1` |
-
-Foundry project + RBAC + external-agent connection are declared inline in
-[infra/modules/ai-foundry.bicep](infra/modules/ai-foundry.bicep). APIM policies
-(AI Gateway) live in [infra/modules/apim-ai-gateway.bicep](infra/modules/apim-ai-gateway.bicep).
+Infra lives under [infra/](infra/) and is built almost entirely from **[Azure
+Verified Modules](https://aka.ms/avm)** — Log Analytics, App Insights, ACR, the
+Foundry account, a user-assigned identity, Key Vault, Cosmos DB, the ACA
+environment + apps, APIM, and Azure AI Search (see
+[infra/main.bicep](infra/main.bicep) for the pinned module versions). The Foundry
+project + RBAC + external-agent connection are declared inline in
+[infra/modules/ai-foundry.bicep](infra/modules/ai-foundry.bicep), and the APIM AI
+Gateway policies live in
+[infra/modules/apim-ai-gateway.bicep](infra/modules/apim-ai-gateway.bicep).
 
 #### APIM as AI Gateway
 
 [infra/modules/apim-ai-gateway.bicep](infra/modules/apim-ai-gateway.bicep) turns
-the bare APIM instance into an AI gateway with two APIs:
-
-| API | Source & policy | Backend dispatch |
-|-----|-----------------|------------------|
-| **`/openai`** | Azure OpenAI OpenAPI spec (`APIM_OPENAI_API_VERSION`). Policy ([azure-openai-api.xml](infra/modules/policies/azure-openai-api.xml)): managed-identity auth, circuit breaker, `azure-openai-token-limit` (`APIM_TOKEN_LIMIT_TPM`), `azure-openai-emit-token-metric`. | `foundry-openai` (Foundry account endpoint). |
-| **`/agents`** | Typed `POST /responses`, `GET /responses/{id}`, `POST /responses/{id}/cancel` under `/agents/maf` and `/agents/langgraph`. Policy ([agents-api.xml](infra/modules/policies/agents-api.xml)): path-based backend dispatch; `validate-azure-ad-token` when `APIM_AGENTS_JWT_AUDIENCE` is set (open gateway when empty — PoC default). | ACA agent FQDN per subroute. |
-
-Two APIM products (`openai`, `agents`) each get a subscription. With
-`APIM_SECRETS_TO_KEYVAULT=true` (default) their keys land in Key Vault as
-`apim-openai-sub-key` / `apim-agents-sub-key`, and the ACA apps' UAI gets
-`Key Vault Secrets User` to pull them.
-
-ACA apps are rolled onto the gateway by their own `deploy_and_register.py`
-(not Bicep) to avoid a circular dependency between APIM learning the ACA FQDN
-and the apps reading their subscription key. Each script sets
-`AZURE_OPENAI_ENDPOINT=APIM_OPENAI_GATEWAY_URL`, injects the key from Key Vault,
-and registers the agent as a Foundry project connection — no manual portal or
-`az containerapp` steps.
+the APIM instance into an AI gateway with two APIs: **`/openai`** (managed-identity
+auth, circuit breaker, token-limit + token-metric policies in front of the Foundry
+model) and **`/agents`** (path-based dispatch to the ACA agents under
+`/agents/maf` and `/agents/langgraph`, with optional Entra token validation via
+`APIM_AGENTS_JWT_AUDIENCE`). Each API's subscription key is persisted to Key Vault;
+the ACA apps read theirs via a `Key Vault Secrets User` grant. The apps are rolled
+onto the gateway by their own `deploy_and_register.py` (not Bicep) to avoid a
+chicken-and-egg between APIM learning the ACA FQDN and the apps reading their key.
 
 #### Foundry IQ / Agent Knowledge (Azure AI Search)
 
-Bicep also provisions an **Azure AI Search** service (`srch-${resourceToken}`)
-and wires it into the Foundry project as a `CognitiveSearch` connection named
-`search-connection`. This is the knowledge layer that backs the **Foundry IQ**
-experience and any `AzureAISearchTool` used by agents.
-
-Defaults:
-
-- **SKU:** `standard` — easy to attach to multiple indexes during testing.
-  Override via the `aiSearchSku` parameter (`free`, `basic`, `standard`,
-  `standard2`, `standard3`).
-- **Auth:** AAD (the Foundry project MI gets `Search Index Data Contributor`
-  + `Search Service Contributor`; the deploying user gets
-  `Search Index Data Contributor`). API keys remain enabled by default for
-  convenience during local testing.
-- **Semantic search:** standard tier enabled.
-- Set `enableAiSearch=false` to skip the service entirely.
-
-You can attach documents in the portal under **Foundry project → Knowledge**,
-or programmatically create indexes via the SDK using `AZURE_AI_SEARCH_ENDPOINT`.
+Bicep also provisions an **Azure AI Search** service and wires it into the
+Foundry project as a `CognitiveSearch` connection (`search-connection`) — the
+knowledge layer behind **Foundry IQ** and any `AzureAISearchTool`. It defaults to
+the `standard` SKU with AAD auth and semantic search on; attach documents under
+**Foundry project → Knowledge** or via the SDK (`AZURE_AI_SEARCH_ENDPOINT`). Set
+`enableAiSearch=false` to skip it.
 
 ### 3. Deploy
 
@@ -186,24 +147,12 @@ pip install -r requirements.txt
 .\scripts\setup-env.ps1
 ```
 
-After `azd up` the following outputs are promoted into the azd env and consumed by `setup-env.ps1`:
-
-| azd output | `.env` key |
-|------------|------------|
-| `AZURE_AI_PROJECT_ENDPOINT` | `AZURE_AI_PROJECT_ENDPOINT` |
-| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | `AZURE_AI_MODEL_DEPLOYMENT_NAME` |
-| `APPLICATIONINSIGHTS_CONNECTION_STRING` | `TELEMETRY_CONNECTION_STRING` |
-| `AZURE_CONTAINER_REGISTRY_NAME` | `ACR_NAME` |
-| `ACA_ENVIRONMENT_ID` | `ACA_ENVIRONMENT_ID` |
-| `APIM_GATEWAY_URL` | `APIM_GATEWAY_URL` |
-| `APIM_NAME` | `APIM_NAME` |
-| `APIM_MAF_AGENT_URL` | _(registered as a Foundry project connection by `03_multi_agent/deploy_and_register.py`)_ |
-| `APIM_LANGGRAPH_AGENT_URL` | _(registered as a Foundry project connection by `02_langgraph_aca/deploy_and_register.py`)_ |
-| `APIM_OPENAI_GATEWAY_URL` | `APIM_OPENAI_GATEWAY_URL` |
-| `APIM_AGENTS_SUBSCRIPTION_RESOURCE_ID` | _(ARM id of the `agents` subscription)_ |
-| `APIM_OPENAI_SUBSCRIPTION_RESOURCE_ID` | _(ARM id of the `openai` subscription)_ |
-| `APIM_OPENAI_KEY_SECRET_NAME` | _(KV secret holding the `openai` subscription key)_ |
-| `APIM_AGENTS_KEY_SECRET_NAME` | _(KV secret holding the `agents` subscription key)_ |
+`setup-env.ps1` promotes the `azd up` outputs into `.env` — project endpoint,
+model deployment, the App Insights connection string (as
+`TELEMETRY_CONNECTION_STRING`), ACR, the ACA environment, and the APIM gateway
+URLs / subscription-key secret names. Scenarios 02–03 register their APIM agent
+URLs as Foundry project connections inside `deploy_and_register.py`. See
+[DEPLOY_AGENT.md](DEPLOY_AGENT.md) Phase 5 for the required-outputs checklist.
 
 ### 4. Configuration knobs
 
@@ -272,11 +221,16 @@ Every scenario exposes the same three lifecycle scripts plus a common
 
 ### Scenario lifecycle
 
-| Step | Scenarios 01 & 04 (Foundry-managed) | Scenarios 02 & 03 (ACA + APIM) |
-|------|-------------------------------------|--------------------------------|
-| **Bootstrap** (once) | `python -m agents.<scenario>.create_and_invoke` — creates (or version-bumps) the PromptAgent, uploads the vector store for 04, runs three demo queries. | `python -m agents.<scenario>.deploy_and_register` — ACR build → ACA revision update (APIM env vars) → Foundry project connection → smoke test. |
+| Step | Scenario 01 (Foundry-managed) | Scenarios 02 & 03 (ACA + APIM) |
+|------|-------------------------------|--------------------------------|
+| **Bootstrap** (once) | `python -m agents.01_prompt_agent.create_and_invoke` — creates (or version-bumps) the PromptAgent and runs three demo queries. | `python -m agents.<scenario>.deploy_and_register` — ACR build → ACA revision update (APIM env vars) → Foundry project connection → smoke test. |
 | **Use** (repeatable, no mutation) | `python -m agents.shared.trace \| evaluate \| redteam --scenario <n>` — `build_handle()` reuses the **latest existing version**; never creates a new one. | `python -m agents.shared.trace \| evaluate \| redteam --scenario <n>` — `build_handle()` invokes the live APIM route; `AgentHandle.version` reflects the current ACA revision name. |
-| **Teardown** | `python -m agents.<scenario>.cleanup` — `agents.delete(agent_name)` cascades every version; scenario 04 also deletes the vector store and uploaded files. | `python -m agents.<scenario>.cleanup` — deletes the Foundry project connection and rolls the ACA app back to its placeholder image. The ACA app itself is left intact (it's owned by Bicep). |
+| **Teardown** | `python -m agents.01_prompt_agent.cleanup` — `agents.delete(agent_name)` cascades every version. | `python -m agents.<scenario>.cleanup` — deletes the Foundry project connection and rolls the ACA app back to its placeholder image. The ACA app itself is left intact (it's owned by Bicep). |
+
+> **Scenario 04 (Foundry-hosted)** doesn't use these scripts — Foundry builds and
+> versions it. Deploy with `azd deploy contoso-travel-hosted` (see the
+> [04 section](#04--foundry-hosted-agent) and DEPLOY_AGENT.md Phase 7b); the
+> shared trace / evaluate / redteam scripts still target it read-only.
 
 > **Lifecycle discipline:** `build_handle()` is deliberately read-only for all
 > scenarios. Re-running the shared trace / evaluate / redteam scripts does not
@@ -312,7 +266,7 @@ Shared scripts invoke via `APIM_GATEWAY_URL/agents/langgraph`; every hop
 (APIM `/agents` → ACA → APIM `/openai` → Foundry model) emits traces correlated
 by `x-apim-request-id`.
 
-#### 03 — Multi-agent (MAF `HandoffBuilder`) on ACA
+#### 03 — Multi-agent (MAF, agents-as-tools) on ACA
 ```powershell
 python -m agents.03_multi_agent.deploy_and_register
 python -m agents.shared.trace    --scenario 03_multi_agent
@@ -321,23 +275,24 @@ python -m agents.shared.redteam  --scenario 03_multi_agent
 python -m agents.03_multi_agent.cleanup
 ```
 Same deploy shape as scenario 02, but the image runs a Microsoft Agent Framework
-workflow: a **triage** agent hands off to **flights**, **hotels**, **cars**
-specialists and a **budget validator**, served behind `/agents/maf` by
-`azure-ai-agentserver-agentframework`. Traces show the triage span, each
-specialist invocation, the handoff edges, and the per-turn APIM `/openai` call.
+system: a **triage** agent calls **flights**, **hotels**, **cars** specialists
+and a **budget validator** as tools, served behind `/agents/maf` by
+`azure-ai-agentserver-agentframework`. Traces show the triage span, each nested
+specialist invocation, and the per-turn APIM `/openai` call.
 
-#### 04 — Prompt Agent with Foundry built-in tools
+#### 04 — Foundry hosted agent
 ```powershell
-python -m agents.04_foundry_tools_agent.create_and_invoke
-python -m agents.shared.trace    --scenario 04_foundry_tools_agent
-python -m agents.shared.evaluate --scenario 04_foundry_tools_agent
-python -m agents.shared.redteam  --scenario 04_foundry_tools_agent
-python -m agents.04_foundry_tools_agent.cleanup
+azd deploy contoso-travel-hosted
+azd ai agent invoke contoso-travel-hosted '{"input": "Business-class Seattle to Paris and a 4-star hotel with a gym."}'
+python -m agents.shared.trace    --scenario 04_hosted_agent
+python -m agents.shared.evaluate --scenario 04_hosted_agent
+python -m agents.shared.redteam  --scenario 04_hosted_agent
 ```
-Provisions a vector store from `agents/04_foundry_tools_agent/data/*.md` (id
-cached in `.vector_store_id`) and registers a PromptAgent with `FileSearchTool`
-+ `CodeInterpreterTool`, plus `BingGroundingTool` when
-`BING_GROUNDING_CONNECTION_ID` is set. All tool execution is server-side.
+The same containerized agent code as 02/03, but **Foundry hosts it**: `azd deploy`
+remote-builds the image in ACR and publishes a versioned hosted agent that reaches
+the model via its managed identity — no APIM gateway, no keys. It's also wired for
+the **Agent Optimizer** (`azd ai agent eval generate` → `azd ai agent optimize`) —
+see [agents/04_hosted_agent](agents/04_hosted_agent).
 
 ## Project structure
 
@@ -349,7 +304,7 @@ demo-agent-observability/
 ├── .env.sample
 │
 ├── data/contoso-travel/               # Shared sample data (flights/hotels/cars CSVs)
-├── scripts/                           # azd-prep.ps1, setup-env.ps1
+├── scripts/                           # azd-prep.ps1, setup-env.ps1, load-test.py (seed traces)
 ├── infra/
 │   ├── main.bicep
 │   ├── main.parameters.json
@@ -381,74 +336,55 @@ demo-agent-observability/
     │   ├── scenario.py                # Read-only adapter (APIM client)
     │   └── cleanup.py                 # Delete connection + rollback ACA to placeholder
     │
-    ├── 03_multi_agent/                # MAF HandoffBuilder on ACA + APIM AI Gateway
+    ├── 03_multi_agent/                # MAF multi-agent (agents-as-tools) on ACA + APIM AI Gateway
     │   ├── src/                       # Container image (agent_app.py + Dockerfile)
     │   ├── deploy_and_register.py
     │   ├── scenario.py
     │   └── cleanup.py
     │
-    └── 04_foundry_tools_agent/        # Prompt agent with built-in Foundry tools
-        ├── agent_def.py               # FileSearch/CodeInterpreter/Bing + vector store
-        ├── data/                      # Policy docs uploaded to the vector store
-        ├── create_and_invoke.py
-        ├── scenario.py
-        └── cleanup.py                 # Delete agent + vector store + uploaded files
+    └── 04_hosted_agent/               # Foundry-hosted agent (managed container)
+        ├── agent/                     # Deployed unit: main.py, Dockerfile, agent.yaml
+        │   ├── main.py                # ResponsesHostServer + MAF agent + function tools (load_config)
+        │   ├── data/                  # Contoso flights/hotels/cars CSVs baked into the image
+        │   ├── instructions/          # Concierge system prompt (seeds the optimizer baseline)
+        │   └── .agent_configs/        # Agent Optimizer baseline (metadata.yaml + instructions.md)
+        ├── eval.yaml                  # Eval suite (azd ai agent eval generate)
+        └── scenario.py                # Harness handle (agent Responses endpoint + bearer token)
 ```
 
 ## Demo narrative
 
-### Act 1 — Pick your architecture
-Four agents, one scenario. Same inputs, same outputs, radically different
-implementations. Show each running locally and in Foundry.
+1. **Pick your architecture** — four agents, one Contoso Travel scenario, same
+   inputs and outputs, radically different implementations. Run each and compare.
+2. **BYO agent becomes a first-class asset** — scenario 02's container → ACA
+   revision → APIM route (token-quota / semantic-cache / MI policies) → external
+   agent connection lands in the Foundry Control Plane, listed in the portal's
+   Agents catalog next to the native ones.
+3. **Unified observability** — all four agents emit spans to the same App
+   Insights / Foundry Tracing view. Span depth grows with the architecture:
+   function-tool calls (prompt agent) → graph nodes (LangGraph) → nested
+   specialist spans (multi-agent) → the managed hosted runtime's server span
+   (hosted agent). Seed a batch of traces per scenario with
+   `python scripts/load-test.py --scenario <n>` (see
+   [DEPLOY_AGENT.md](DEPLOY_AGENT.md) Phase 8 for the telemetry env note).
+4. **Agent-agnostic evaluation & red-teaming** — the same `evaluate` and
+   `redteam --scenario <n>` run against all four, compared side-by-side in the
+   portal.
 
-### Act 2 — BYO agent becomes a first-class asset
-Walk through the ACA + AI Gateway flow for scenario 02: container image → ACA
-revision → APIM route with token-quota/semantic-cache/MI policies → external
-agent connection in the Foundry Control Plane. The agent appears in the
-portal's Agents catalog next to the native ones.
+**How `evaluate` works:** for each row of `evaluation_data.jsonl` it calls
+`handle.invoke(query)` inside an OTel span (exported to App Insights via
+`AIProjectInstrumentor`), then submits the `{query, response, context,
+ground_truth}` items to Foundry judges (quality + safety evaluators). This single
+code path works for all four scenarios — including 02/03, whose connection-backed
+identity can't be an `azure_ai_agent` eval target. In the portal, filter the
+Tracing pane by `evaluation.run_name` to line each score up with the trace that
+produced it.
 
-### Act 3 — Unified observability
-All four agents emit spans to the same App Insights / Foundry Tracing view.
-Compare span depth: API only (prompt agent) → API + tool (built-in tools) →
-API + graph nodes (LangGraph) → API + handoff + specialist spans (multi-agent).
-
-### Act 4 — Agent-agnostic evaluation and red-teaming
-Same `evaluate --scenario <n>` and `redteam --scenario <n>` against all four.
-Compare quality, safety, and vulnerability profiles side-by-side in the Foundry
-portal.
-
-#### How `evaluate` works across all 4 scenarios
-
-The shared `evaluate` script uses **local generation + remote judges**:
-
-1. For every row of `data/contoso-travel/evaluation_data.jsonl`, it calls
-   `handle.invoke(query)` inside an OTel span tagged with the eval run name,
-   scenario, agent name/version, and query index. The agent's full trace
-   (tool calls, graph nodes, handoff edges, model hops) is exported to App
-   Insights via `AIProjectInstrumentor`.
-2. The pre-generated `{query, response, context, ground_truth}` items are
-   submitted to Foundry evals via a `jsonl` data source. The Foundry judges
-   (fluency / coherence / task adherence / groundedness / relevance /
-   violence / hate-unfairness / self-harm) score the live responses.
-
-This unifies the code path across all four scenarios — including scenarios 02
-and 03 whose asset identity is a Foundry project connection and therefore
-can't be used as an `azure_ai_agent` eval target.
-
-**Trace ↔ eval correlation in the portal:**
-- **Evaluations pane** — shows scores + inputs/outputs per row.
-- **Tracing pane** — filter by `evaluation.run_name` to see the full agent
-  trace that produced each response, matched row-by-row with the eval run.
-
-#### Red-teaming scope
-
-The server-side red-team orchestrator (`redteam` script) targets Foundry
-PromptAgents via `AzureAIAgentTarget(name, version)` — so it works directly
-for scenarios **01** and **04**. For scenarios **02** and **03** it prints
-a skip message: the connection-backed target type is not yet supported by
-the orchestrator. The recommended extension is
-[`azure-ai-evaluation.red_team.RedTeam`](https://learn.microsoft.com/azure/foundry/concepts/ai-red-teaming-agent)
-with `handle.invoke` as a callback target.
+**Red-teaming scope:** the server-side orchestrator targets Foundry PromptAgents
+via `AzureAIAgentTarget(name, version)`, so it runs directly for scenarios **01**
+and **04**; **02/03** print a skip (connection-backed targets aren't supported
+yet — extend with [`azure-ai-evaluation.red_team.RedTeam`](https://learn.microsoft.com/azure/foundry/concepts/ai-red-teaming-agent)
+using `handle.invoke` as the callback target).
 
 ## Resources
 

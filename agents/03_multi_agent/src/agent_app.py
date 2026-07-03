@@ -1,25 +1,26 @@
 """
-Contoso Travel multi-agent workflow — Microsoft Agent Framework ``HandoffBuilder``
+Contoso Travel multi-agent concierge — Microsoft Agent Framework agents-as-tools
 orchestration served by ``from_agent_framework(agent).run()`` on ACA.
 
-Topology (handoff graph):
+Topology (the triage coordinator calls each specialist as a tool):
 
                          ┌──────────┐
-                         │  triage  │
+                         │  triage  │   orchestrator ChatAgent
                          └────┬─────┘
-             ┌────────────────┼────────────────┐
-             ▼                ▼                ▼
-      ┌───────────┐    ┌───────────┐    ┌──────────────┐
-      │  flights  │    │   hotels  │    │   car rent   │
-      └─────┬─────┘    └─────┬─────┘    └──────┬───────┘
-            └────────────────┼───────────────────┘
-                             ▼
-                      ┌────────────┐
-                      │  budget    │
-                      │ validator  │
-                      └─────┬──────┘
-                            ▼
-                        (back to triage)
+          ┌───────────┬───────┴───────┬───────────────┐
+          ▼           ▼               ▼               ▼
+    ┌──────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐
+    │ flights  │ │  hotels  │ │  car rentals │ │    budget    │
+    │specialist│ │specialist│ │  specialist  │ │  validator   │
+    └──────────┘ └──────────┘ └──────────────┘ └──────────────┘
+
+Each specialist is a ChatAgent exposed to triage via ``agent.as_tool()``. One
+Responses call runs triage, which calls the relevant specialist tools; every
+specialist run emits its own ``invoke_agent`` span nested under triage, so a
+single trace shows the full multi-agent interaction and every specialist that ran
+appears in traces/evaluations. This replaced a ``HandoffBuilder`` workflow whose
+request-info (human-in-the-loop) pauses don't survive the stateless, plain-text
+Responses contract that batch/continuous evals and the Foundry portal use.
 
 Model access:
   - When ``AZURE_OPENAI_ENDPOINT`` + ``AZURE_OPENAI_API_KEY`` are set, model
@@ -28,8 +29,8 @@ Model access:
   - Otherwise it falls back to direct Foundry with AAD auth.
 
 Server:
-  ``from_agent_framework(WorkflowAgent(workflow)).run()`` binds an HTTP server
-  on 0.0.0.0:8088 exposing the OpenAI Responses API contract.
+  ``from_agent_framework(triage).run()`` binds an HTTP server on 0.0.0.0:8088
+  exposing the OpenAI Responses API contract.
 """
 
 import json
@@ -40,12 +41,8 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
-from agent_framework import WorkflowAgent
-from agent_framework.openai import OpenAIChatClient
-from agent_framework.foundry import FoundryChatClient
-from agent_framework.orchestrations import HandoffBuilder
+from agent_framework.azure import AzureOpenAIChatClient
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from azure.ai.agentserver.agentframework import from_agent_framework
 
 load_dotenv(override=True)
@@ -59,6 +56,14 @@ MODEL_DEPLOYMENT = os.getenv(
     os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5"),
 )
 PROJECT_ENDPOINT = os.getenv("AZURE_AI_PROJECT_ENDPOINT", "").strip()
+# Identity used to correlate this agent's traces to the registered Foundry custom
+# agent. Must match the registration's "OpenTelemetry agent ID". The Control Plane
+# correlates a whole trace once ONE span carries gen_ai.agent.id = this value.
+# It is applied as the triage coordinator's id: triage is the root ChatAgent every
+# request enters through, so its invoke_agent span anchors the whole trace. The
+# specialists triage calls (via .as_tool()) emit their own child invoke_agent spans.
+# Override via AGENT_NAME.
+AGENT_IDENTIFIER = os.getenv("AGENT_NAME", "contoso-travel-maf-agent")
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 flights_df = pd.read_csv(DATA_DIR / "flights.csv")
@@ -140,25 +145,23 @@ def build_chat_client():
     apim_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
     api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
 
-    if apim_endpoint and apim_key:
-        logger.info("Multi-agent model calls routed through APIM: %s", apim_endpoint)
-        return OpenAIChatClient(
-            model=MODEL_DEPLOYMENT,
-            azure_endpoint=apim_endpoint,
-            api_key=apim_key,
-            api_version=api_version,
+    if not (apim_endpoint and apim_key):
+        raise RuntimeError(
+            "AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY must be set so the "
+            "multi-agent workflow reaches the model through the APIM AI Gateway."
         )
 
-    logger.info("Multi-agent model calls routed direct to Foundry (AAD).")
-    if not PROJECT_ENDPOINT:
-        raise RuntimeError(
-            "AZURE_AI_PROJECT_ENDPOINT must be set when no APIM endpoint is configured."
-        )
-    credential = DefaultAzureCredential()
-    return FoundryChatClient(
-        project_endpoint=PROJECT_ENDPOINT,
-        model=MODEL_DEPLOYMENT,
-        credential=credential,
+    # The APIM AI Gateway authenticates callers with the subscription key in the
+    # ``Ocp-Apim-Subscription-Key`` header (not the ``api-key`` header the Azure
+    # OpenAI SDK sends by default), so pass it via ``default_headers``. The
+    # endpoint is the APIM base; the SDK appends ``/openai/deployments/...``.
+    logger.info("Multi-agent model calls routed through APIM: %s", apim_endpoint)
+    return AzureOpenAIChatClient(
+        endpoint=apim_endpoint,
+        deployment_name=MODEL_DEPLOYMENT,
+        api_key=apim_key,
+        api_version=api_version,
+        default_headers={"Ocp-Apim-Subscription-Key": apim_key},
     )
 
 
@@ -180,59 +183,77 @@ BUDGET_INSTRUCTIONS = _load_instructions("budget.md")
 
 
 # ---------------------------------------------------------------------------
-# Build the workflow
+# Build the orchestrator agent (triage + specialists exposed as tools)
 # ---------------------------------------------------------------------------
-def build_workflow_agent() -> WorkflowAgent:
+def build_agent():
     chat = build_chat_client()
 
-    triage = chat.as_agent(
-        name="triage",
-        description="Entry-point travel coordinator that routes to specialists.",
-        instructions=TRIAGE_INSTRUCTIONS,
-    )
-    flights = chat.as_agent(
+    # Each specialist is a ChatAgent with its own domain tool. Exposed to triage
+    # via .as_tool(), a specialist runs on demand and emits its OWN invoke_agent
+    # span, so a single Responses call produces one trace that covers every agent
+    # that ran (triage -> flights/hotels/cars -> budget) and every specialist shows
+    # up in traces and evaluations.
+    flights = chat.create_agent(
         name="flights_specialist",
         description="Searches Contoso Travel's flight inventory.",
         instructions=FLIGHTS_INSTRUCTIONS,
         tools=[search_flights],
     )
-    hotels = chat.as_agent(
+    hotels = chat.create_agent(
         name="hotels_specialist",
         description="Searches Contoso Travel's hotel inventory.",
         instructions=HOTELS_INSTRUCTIONS,
         tools=[search_hotels],
     )
-    cars = chat.as_agent(
+    cars = chat.create_agent(
         name="cars_specialist",
         description="Searches Contoso Travel's car-rental inventory.",
         instructions=CARS_INSTRUCTIONS,
         tools=[search_car_rentals],
     )
-    validator = chat.as_agent(
+    validator = chat.create_agent(
         name="budget_validator",
         description="Validates proposed trip totals against corporate policy (USD 3,500 default).",
         instructions=BUDGET_INSTRUCTIONS,
     )
 
-    workflow = (
-        HandoffBuilder(
-            name="contoso-travel-multiagent",
-            participants=[triage, flights, hotels, cars, validator],
-        )
-        .with_start_agent(triage)
-        .add_handoff(triage, [flights, hotels, cars, validator])
-        .add_handoff(flights, [triage])
-        .add_handoff(hotels, [triage])
-        .add_handoff(cars, [triage])
-        .add_handoff(validator, [triage])
-        .build()
+    # triage is BOTH the orchestrator and the trace-correlation anchor: its id is the
+    # registered OTel agent ID (every request enters through it), and it calls the
+    # specialists as tools. A plain ChatAgent completes its run per request, so there
+    # is no HandoffBuilder request-info pause to trip evals / the Foundry portal.
+    triage = chat.create_agent(
+        id=AGENT_IDENTIFIER,
+        name="triage",
+        description="Entry-point travel coordinator that orchestrates the specialist agents.",
+        instructions=TRIAGE_INSTRUCTIONS,
+        tools=[
+            flights.as_tool(
+                name="consult_flights_specialist",
+                description="Delegate an air-travel search to the flights specialist agent.",
+                arg_name="request",
+                arg_description="Self-contained flight request: origin, destination, dates, cabin, budget.",
+            ),
+            hotels.as_tool(
+                name="consult_hotels_specialist",
+                description="Delegate a hotel search to the hotels specialist agent.",
+                arg_name="request",
+                arg_description="Self-contained hotel request: city, dates, star rating, amenities, budget.",
+            ),
+            cars.as_tool(
+                name="consult_cars_specialist",
+                description="Delegate a car-rental search to the cars specialist agent.",
+                arg_name="request",
+                arg_description="Self-contained car request: city, dates, car type, budget.",
+            ),
+            validator.as_tool(
+                name="consult_budget_validator",
+                description="Ask the budget validator agent to check the proposed trip total against policy.",
+                arg_name="request",
+                arg_description="Proposed trip components with prices and the traveller's stated budget.",
+            ),
+        ],
     )
-
-    return WorkflowAgent(
-        workflow,
-        name="contoso-travel-multiagent",
-        description="Multi-agent Contoso Travel concierge (Triage + specialists + budget validator).",
-    )
+    return triage
 
 
 # ---------------------------------------------------------------------------
@@ -240,5 +261,5 @@ def build_workflow_agent() -> WorkflowAgent:
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    agent = build_workflow_agent()
+    agent = build_agent()
     from_agent_framework(agent).run()

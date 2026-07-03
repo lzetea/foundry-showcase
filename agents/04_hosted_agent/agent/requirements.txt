@@ -1,0 +1,13 @@
+# Matches the official Foundry hosted-agent sample's known-good set. Use the
+# focused agent-framework-foundry package (NOT the meta agent-framework, which
+# resolves a mismatched FoundryChatClient/openai pair -> streaming fails with
+# "'AsyncStreamWrapper' object has no attribute 'parse'"). Pin the hosting
+# package to the protocol-2.0.0 line so it stays paired with the chat client.
+agent-framework-foundry
+agent-framework-foundry-hosting>=1.0.0a260630
+# Direct imports in main.py; also resolved transitively, listed for clarity.
+azure-identity
+python-dotenv
+# Agent Optimizer: exposes the baseline instructions + model to Foundry's
+# `azd ai agent optimize` via load_config() reading .agent_configs/baseline/.
+azure-ai-agentserver-optimization

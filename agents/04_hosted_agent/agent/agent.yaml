@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
+kind: hosted
+name: contoso-travel-hosted
+protocols:
+    # 2.0.0 is required by current agent-framework-foundry-hosting (samples bumped
+    # from 1.0.0 in June 2026). A 1.0.0 declaration here makes every /responses
+    # call fail with a protocol-mismatch RuntimeError inside the container.
+    - protocol: responses
+      version: 2.0.0
+environment_variables:
+    # Resolved from the active azd env at deploy time. The Foundry hosting runtime
+    # also injects FOUNDRY_PROJECT_ENDPOINT and (when monitoring is on)
+    # APPLICATIONINSIGHTS_CONNECTION_STRING at container start - do not list those here.
+    - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+      value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+    # NOTE: do NOT set AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING=true here. It enables
+    # the azure-ai-projects Responses instrumentor, which monkey-patches
+    # responses.create so agent-framework-openai's streaming path
+    # (responses.with_raw_response.create(...).parse()) receives an AsyncStreamWrapper
+    # with no .parse() -> every streaming/playground call 500s. The agentserver still
+    # emits server + request spans to App Insights without it.

@@ -24,7 +24,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from agents.shared import aca_connection
-from agents.shared.config import MODEL_NAME, get_clients
+from agents.shared.config import MAF_MODEL_NAME, get_clients
 
 AGENT_NAME = "contoso-travel-multiagent"
 CONNECTION_NAME = "contoso-travel-multiagent-endpoint"
@@ -54,7 +54,10 @@ def main():
     aca_connection.update_container_app(
         CONTAINER_APP_NAME,
         image_ref,
-        extra_env={"AZURE_AI_PROJECT_ENDPOINT": project_endpoint},
+        extra_env={
+            "AZURE_AI_PROJECT_ENDPOINT": project_endpoint,
+            "MODEL_DEPLOYMENT_NAME": MAF_MODEL_NAME,
+        },
     )
 
     project_client, _ = get_clients()
@@ -69,7 +72,7 @@ def main():
             "topology": "handoff",
         },
     )
-    aca_connection.smoke_test(APIM_SUBROUTE, SMOKE_TEST_QUERY, MODEL_NAME)
+    aca_connection.smoke_test(APIM_SUBROUTE, SMOKE_TEST_QUERY, MAF_MODEL_NAME)
 
     print("\n" + "=" * 70)
     print(f"Deployed image: {image_ref}")

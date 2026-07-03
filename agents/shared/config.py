@@ -29,6 +29,10 @@ load_dotenv(ROOT_DIR / ".env", override=True)
 
 ENDPOINT = os.environ.get("AZURE_AI_PROJECT_ENDPOINT", "")
 MODEL_NAME = os.environ.get("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5")
+# Scenario 03 (MAF multi-agent) chains several sequential agent hops per turn, so
+# it uses a faster/cheaper model to keep turn latency under the APIM gateway
+# timeout. Override with MAF_MODEL_DEPLOYMENT_NAME.
+MAF_MODEL_NAME = os.environ.get("MAF_MODEL_DEPLOYMENT_NAME", "gpt-5.4-nano")
 
 
 def _check_env():

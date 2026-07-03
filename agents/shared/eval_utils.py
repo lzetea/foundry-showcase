@@ -370,11 +370,12 @@ def run_agentic_evaluation(openai_client, handle):
 # =============================================================================
 # Red-team evaluation
 # =============================================================================
-# Scenarios whose agent is a Foundry PromptAgent (``azure_ai_agent`` target).
-# Red-team requires a server-side adversarial generator that can issue attacks
-# at the target; external connection-backed agents (02 / 03) are not yet
-# supported by this surface.
-_REDTEAM_SUPPORTED_SCENARIOS = {"01_prompt_agent", "04_foundry_tools_agent"}
+# Scenarios whose agent is a first-class Foundry agent asset (``azure_ai_agent``
+# target): a PromptAgent (01) or a hosted agent (04). Red-team requires a
+# server-side adversarial generator that can issue attacks at the target;
+# external connection-backed agents (02 / 03, behind the APIM gateway) are not
+# yet supported by this surface.
+_REDTEAM_SUPPORTED_SCENARIOS = {"01_prompt_agent", "04_hosted_agent"}
 
 
 def run_redteam(project_client, openai_client, handle):

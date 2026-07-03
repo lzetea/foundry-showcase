@@ -1,0 +1,2 @@
+model: gpt-5.4-nano
+instruction_file: instructions.md

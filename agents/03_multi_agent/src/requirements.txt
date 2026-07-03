@@ -1,6 +1,24 @@
+# --- Foundry hosted-agent server (Microsoft Agent Framework) ---
+# These packages are a VERSION-MATCHED set. The azure-ai-agentserver 1.0.0b7
+# packages use loose lower-bound pins that, left to float, resolve to incompatible
+# newer transitive versions and crash the container on startup:
+#   * azure-ai-agentserver-core floats to 2.0.0b7, which moved core.client.tools
+#     -> core.tools; agentframework 1.0.0b7 imports azure.ai.agentserver.core.
+#     client.tools (ModuleNotFoundError). Pin core to the matched 1.0.0b7.
+#   * Starlette floats to >=1.0, which removed Starlette.on_event() used by
+#     core 1.0.0b7's server base (AttributeError). Keep Starlette <1.0.
+#   * agent-framework-azure-ai 1.0.0b251112 imports PromptAgentDefinitionText +
+#     ResponseTextFormatConfigurationJsonSchema, which exist only in
+#     azure-ai-projects 2.0.0b1..b3 (removed/renamed in 2.0.0b4+). Pin 2.0.0b3.
+#   * The old azure-identity==1.19.0 pin conflicts with core 1.0.0b7's
+#     azure-identity>=1.25.1 requirement.
 azure-ai-agentserver-agentframework==1.0.0b7
-agent-framework==1.0.0b7
-azure-identity==1.19.0
+azure-ai-agentserver-core==1.0.0b7
+agent-framework-core==1.0.0b251112
+agent-framework-azure-ai==1.0.0b251112
+azure-ai-projects==2.0.0b3
+starlette<1.0
+azure-identity>=1.25.1
 python-dotenv==1.0.1
 pandas==2.2.3
 azure-core-tracing-opentelemetry==1.0.0b12

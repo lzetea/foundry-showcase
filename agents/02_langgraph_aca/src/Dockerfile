@@ -8,6 +8,11 @@ WORKDIR /app
 
 # Install deps first for layer caching
 COPY requirements.txt .
+# Do NOT add pip's global --pre flag here. It enables pre-releases for the
+# whole graph and pulls broken pre-release pydantic / langchain-core builds
+# (forward-ref eval bug that crashes langchain_openai at request time). The
+# pre-release-pinned packages in requirements.txt (==1.0.0b17, >=1.0.0b13)
+# carry explicit pre-release markers and install fine without --pre.
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt
 

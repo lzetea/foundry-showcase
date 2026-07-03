@@ -88,6 +88,27 @@ def _load_prompts(path: Path) -> list[str]:
     return prompts
 
 
+def _invoke_with_retry(handle, prompt: str, attempts: int = 3) -> str:
+    """Invoke the agent, retrying transient telemetry-instrumentor glitches.
+
+    The azure-ai-projects Responses instrumentor occasionally reads
+    ``.attributes`` on a ``NonRecordingSpan`` under thread-pool concurrency and
+    raises ``AttributeError`` even though the underlying model call is fine, so a
+    short retry recovers cleanly. Any other error propagates on the first try.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            return handle.invoke(prompt) or ""
+        except AttributeError as exc:
+            if "attributes" not in str(exc).lower():
+                raise
+            last_exc = exc
+            time.sleep(0.5 * (attempt + 1))
+    assert last_exc is not None
+    raise last_exc
+
+
 def _run_one(handle, tracer, run_id: str, idx: int, prompt: str) -> dict:
     """Invoke the agent once inside a tagged OTel span; return a result row."""
     start = time.perf_counter()
@@ -101,7 +122,7 @@ def _run_one(handle, tracer, run_id: str, idx: int, prompt: str) -> dict:
         span.set_attribute("agent.name", handle.name)
         span.set_attribute("travel.query", prompt)
         try:
-            output = handle.invoke(prompt) or ""
+            output = _invoke_with_retry(handle, prompt)
         except Exception as exc:  # noqa: BLE001
             status = "error"
             error = str(exc)

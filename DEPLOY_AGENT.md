@@ -48,7 +48,7 @@ Run each check. All must pass before continuing.
 
 ```powershell
 az version                 # expect 2.60 or later
-azd version                # expect 1.10 or later
+azd version                # expect 1.25 or later (scenario 04 uses `azd ai agent`)
 az bicep version           # expect 0.30 or later
 python --version           # expect 3.12 or later
 az account show            # expect a JSON account object (proves az login)
@@ -202,10 +202,30 @@ Responses API.
 
 ---
 
+## Phase 7b — Deploy the Foundry-hosted agent (scenario 04)
+
+Scenario 04 is built and run by Foundry itself — no ACA or APIM. It uses the
+`azure.ai.agents` azd extension and the env values hydrated in Phase 5.
+
+```powershell
+azd extension install azure.ai.agents        # once, if not already installed
+azd deploy contoso-travel-hosted             # remote-builds the image in ACR, publishes a hosted agent version
+azd ai agent invoke contoso-travel-hosted '{"input": "Business-class Seattle to Paris and a 4-star hotel with a gym."}'
+```
+
+**Gate 7b:**
+- `azd deploy` must end with `Done` plus a portal + Responses endpoint URL, and
+  the invoke must return grounded Contoso flight/hotel data.
+- Build failure → inspect the ACR remote-build log; do not retry blindly.
+- Invoke auth error → confirm the agent's managed identity has **Azure AI User**
+  on the Foundry account; RBAC propagation can lag a few minutes, retry once.
+
+---
+
 ## Phase 8 — Optional: governance surfaces
 
 For any deployed scenario `<n>` (`01_prompt_agent`, `02_langgraph_aca`,
-`03_multi_agent`, `04_foundry_tools_agent`):
+`03_multi_agent`, `04_hosted_agent`):
 
 ```powershell
 python -m agents.shared.trace    --scenario <n>
@@ -214,6 +234,26 @@ python -m agents.shared.redteam  --scenario <n>   # 01 & 04 only; 02/03 print a 
 ```
 
 These are read-only against server state and safe to re-run.
+
+**Seed traces for observability** (optional) with the load generator. It exports
+spans only when `TELEMETRY_CONNECTION_STRING` is set in the **shell** (the script
+reads `os.environ` before `.env` is loaded), so set it from `.env` first:
+
+```powershell
+$env:TELEMETRY_CONNECTION_STRING = ((Get-Content .env | Select-String '^TELEMETRY_CONNECTION_STRING=' | Select-Object -First 1).Line -replace '^TELEMETRY_CONNECTION_STRING=','')
+python scripts/load-test.py --scenario 01_prompt_agent --total 30
+```
+
+**Evaluate & optimize the hosted agent** (scenario 04 only): `main.py` loads its
+prompt/model from `.agent_configs/baseline/` so Foundry's Agent Optimizer can tune
+them. Do not apply a candidate without operator review.
+
+```powershell
+azd ai agent eval generate                                         # eval.yaml + baseline
+azd ai agent optimize --optimize-model gpt-5 --eval-model gpt-5.4-nano
+# after review:
+azd ai agent optimize apply --candidate <id>; azd deploy contoso-travel-hosted
+```
 
 ---
 
@@ -225,7 +265,8 @@ These are read-only against server state and safe to re-run.
 python -m agents.02_langgraph_aca.cleanup
 python -m agents.03_multi_agent.cleanup
 python -m agents.01_prompt_agent.cleanup
-python -m agents.04_foundry_tools_agent.cleanup
+# 04 hosted agent: delete the agent version in the Foundry portal, or run
+# `azd down` to tear down the whole environment (destructive).
 ```
 
 **Full environment teardown** — destroys the entire resource group:

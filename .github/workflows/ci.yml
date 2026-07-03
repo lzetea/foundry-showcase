@@ -43,8 +43,7 @@ jobs:
               "agents.01_prompt_agent.agent_def",
               "agents.02_langgraph_aca.scenario",
               "agents.03_multi_agent.scenario",
-              "agents.04_foundry_tools_agent.scenario",
-              "agents.04_foundry_tools_agent.agent_def",
+              "agents.04_hosted_agent.scenario",
           ]
           for m in modules:
               importlib.import_module(m)

@@ -12,8 +12,8 @@ build/
 agents/02_langgraph_aca/src/data/
 agents/03_multi_agent/src/data/
 
-# Cached vector-store id for scenario 04 (Foundry built-in tools)
-agents/04_foundry_tools_agent/.vector_store_id
+# Local azd/Foundry cache for the scenario 04 hosted agent
+agents/04_hosted_agent/agent/.foundry/
 
 # Compiled ARM template (regenerated from main.bicep on every `azd up`)
 infra/main.json
